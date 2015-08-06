@@ -897,6 +897,7 @@ namespace SharpServer.Ftp
 
 				if (Pathname != null)
 				{
+					_log.DebugFormat("STOR {0}",Pathname);
 					var state = new DataConnectionOperation { Arguments = Pathname, Operation = StoreOperation };
 
 					SetupDataConnectionOperation(state);
@@ -918,13 +919,21 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response StoreUnique()
         {
-            string pathname = NormalizeFilename(new Guid().ToString());
+			  string Pathname = NormalizeFilename(new Guid().ToString());
+			  if (Pathname != null)
+			  {
+				  _log.DebugFormat("STOU {0}", Pathname);
+				  var state = new DataConnectionOperation { Arguments = Pathname, Operation = StoreOperation };
 
-            var state = new DataConnectionOperation { Arguments = pathname, Operation = StoreOperation };
+				  SetupDataConnectionOperation(state);
 
-            SetupDataConnectionOperation(state);
-
-            return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOU"));
+				  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOU"));
+			  }
+			  else
+			  {
+				  _log.ErrorFormat("Pathname could not be normalized: {0}", Pathname);
+			  }
+			  return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
         }
 
         /// <summary>
