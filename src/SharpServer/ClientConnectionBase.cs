@@ -60,7 +60,7 @@ namespace SharpServer
         {
         }
 
-        protected virtual long CopyStream(Stream input, Stream output, int bufferSize, Action<int> performanceCounterAction)
+		  protected virtual long CopyStream(Stream input, Stream output, int bufferSize, Action<int> performanceCounterAction)
         {
             byte[] buffer = new byte[bufferSize];
             int count = 0;
@@ -76,7 +76,7 @@ namespace SharpServer
             return total;
         }
 
-        protected virtual long CopyStream(Stream input, Stream output, int bufferSize, Encoding encoding, Action<int> performanceCounterAction)
+		  protected virtual long CopyStream(Stream input, Stream output, int bufferSize, Encoding encoding, Action<int> performanceCounterAction)
         {
             char[] buffer = new char[bufferSize];
             int count = 0;
@@ -84,8 +84,8 @@ namespace SharpServer
 
             using (StreamReader rdr = new StreamReader(input))
             {
-                using (StreamWriter wtr = new StreamWriter(output, encoding))
-                {
+					using (StreamWriter wtr = new StreamWriter(output, encoding))
+					{
                     while ((count = rdr.Read(buffer, 0, buffer.Length)) > 0)
                     {
                         wtr.Write(buffer, 0, count);
