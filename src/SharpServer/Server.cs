@@ -50,7 +50,7 @@ namespace SharpServer
 			  _logHeader = logHeader;
 		  }
 
-		  public void Start()
+		  public Boolean Start()
         {
 			  Boolean rc = true;
             if (_disposed)
@@ -84,11 +84,13 @@ namespace SharpServer
 					_listening = true;
 					OnStart();
 				}
+				return rc;
         }
 
-        public void Stop()
+		  public Boolean Stop()
         {
-            _log.Info("# Stopping Server");
+			  Boolean rc = true;
+			  _log.Info("# Stopping Server");
             _listening = false;
 
             foreach (var listener in _listeners)
@@ -99,7 +101,8 @@ namespace SharpServer
             _listeners.Clear();
 
             OnStop();
-        }
+				return rc;
+		  }
 
         protected virtual void OnStart()
         {

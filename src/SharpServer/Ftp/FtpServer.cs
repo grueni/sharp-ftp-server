@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Timers;
+using System.IO;
 
 namespace SharpServer.Ftp
 {
@@ -25,18 +26,14 @@ namespace SharpServer.Ftp
         protected override void OnConnectAttempt()
         {
             FtpPerformanceCounters.IncrementTotalConnectionAttempts();
-
             base.OnConnectAttempt();
         }
 
         protected override void OnStart()
         {
             _startTime = DateTime.Now;
-
             _timer = new Timer(TimeSpan.FromSeconds(1).TotalMilliseconds);
-
             _timer.Elapsed += new ElapsedEventHandler(_timer_Elapsed);
-
             _timer.Start();
         }
 
@@ -49,10 +46,8 @@ namespace SharpServer.Ftp
         protected override void Dispose(bool disposing)
         {
             FtpClientConnection.PassiveListeners.ReleaseAll();
-
             if (_timer != null)
                 _timer.Dispose();
-
             base.Dispose(disposing);
         }
 

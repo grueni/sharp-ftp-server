@@ -72,7 +72,6 @@ namespace SharpServer
                 total += count;
                 performanceCounterAction(count);
             }
-
             return total;
         }
 
