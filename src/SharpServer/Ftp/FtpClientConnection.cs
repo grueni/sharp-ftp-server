@@ -181,9 +181,10 @@ namespace SharpServer.Ftp
 
         protected override Response HandleCommand(Command cmd)
         {
+//			  _log.DebugFormat("cmd.Code={0}", cmd.Code);
             Response response = null;
 
-            FtpLogEntry logEntry = new FtpLogEntry
+            var logEntry = new FtpLogEntry
             {
                 Date = DateTime.Now,
                 CIP = ClientIP,
@@ -264,10 +265,11 @@ namespace SharpServer.Ftp
                     case "MKD":
                         response = CreateDir(cmd.Arguments.FirstOrDefault());
                         break;
-                    case "PWD":
-                        response = PrintWorkingDirectory();
-                        break;
-                    case "RETR":
+						  case "XPWD":
+						  case "PWD":
+								response = PrintWorkingDirectory();
+								break;
+						  case "RETR":
                         response = Retrieve(cmd.Arguments.FirstOrDefault());
                         logEntry.Date = DateTime.Now;
                         break;
@@ -471,11 +473,11 @@ namespace SharpServer.Ftp
             return path.StartsWith(_root, StringComparison.OrdinalIgnoreCase);
         }
 
-        private string NormalizeFilename(string path)
+        private string NormalizeFilename(String path)
         {
             if (path == null)
             {
-                path = string.Empty;
+                path = String.Empty;
             }
 
             if (_invalidPathChars.IsMatch(path))
@@ -489,12 +491,12 @@ namespace SharpServer.Ftp
             }
             else if (path.StartsWith("/", StringComparison.OrdinalIgnoreCase))
             {
-                path = new FileInfo(Path.Combine(_root, path.Substring(1))).FullName;
-            }
+					path = Path.Combine(_root, path.Substring(1));
+				}
             else
             {
-                path = new FileInfo(Path.Combine(_currentDirectory, path)).FullName;
-            }
+					path = Path.Combine(_currentDirectory, path);
+				}
 
             return IsPathValid(path) ? path : null;
         }
@@ -509,18 +511,18 @@ namespace SharpServer.Ftp
             return null;
         }
 
-        private long CopyStream(Stream input, Stream output, Action<int> perfAction)
+		  private long CopyStream(Stream input, Stream output, Action<int> perfAction)
         {
-            Stream limitedStream = output;
+			  Stream limitedStream = output;
 
-            if (_connectionType == TransferType.Image)
+			  if (_connectionType == TransferType.Image)
             {
                 return CopyStream(input, limitedStream, BUFFER_SIZE, perfAction);
             }
             else
             {
-                return CopyStream(input, limitedStream, BUFFER_SIZE, _currentEncoding, perfAction);
-            }
+					return CopyStream(input, limitedStream, BUFFER_SIZE, perfAction);
+				}
         }
 
         private Response GetResponse(Response response)
@@ -850,16 +852,20 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response Store(string pathname)
         {
-            pathname = NormalizeFilename(pathname);
+            String Pathname = NormalizeFilename(pathname);
 
-            if (pathname != null)
-            {
-                var state = new DataConnectionOperation { Arguments = pathname, Operation = StoreOperation };
+				if (Pathname != null)
+				{
+					var state = new DataConnectionOperation { Arguments = Pathname, Operation = StoreOperation };
 
-                SetupDataConnectionOperation(state);
+					SetupDataConnectionOperation(state);
 
-                return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR"));
-            }
+					return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR"));
+				}
+				else
+				{
+					_log.ErrorFormat("pathname could not be normalized: {0}", pathname);
+				}
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
         }
@@ -1254,7 +1260,7 @@ namespace SharpServer.Ftp
 
         private Response RetrieveOperation(NetworkStream dataStream, string pathname)
         {
-            using (FileStream fs = new FileStream(pathname, FileMode.Open, FileAccess.Read))
+            using (var fs = new FileStream(pathname, FileMode.Open, FileAccess.Read))
             {
                 CopyStream(fs, dataStream, FtpPerformanceCounters.IncrementBytesSent);
             }
@@ -1268,12 +1274,12 @@ namespace SharpServer.Ftp
         {
             long bytes = 0;
 
-            using (FileStream fs = new FileStream(pathname, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, BUFFER_SIZE, FileOptions.SequentialScan))
+            using (var fs = new FileStream(pathname, FileMode.Create, FileAccess.Write, FileShare.None, BUFFER_SIZE, FileOptions.SequentialScan))
             {
                 bytes = CopyStream(dataStream, fs, FtpPerformanceCounters.IncrementBytesReceived);
             }
 
-            FtpLogEntry logEntry = new FtpLogEntry
+            var logEntry = new FtpLogEntry
             {
                 Date = DateTime.Now,
                 CIP = ClientIP,
@@ -1294,12 +1300,12 @@ namespace SharpServer.Ftp
         {
             long bytes = 0;
 
-            using (FileStream fs = new FileStream(pathname, FileMode.Append, FileAccess.Write, FileShare.None, BUFFER_SIZE, FileOptions.SequentialScan))
+            using (var fs = new FileStream(pathname, FileMode.Append, FileAccess.Write, FileShare.None, BUFFER_SIZE, FileOptions.SequentialScan))
             {
                 bytes = CopyStream(dataStream, fs, FtpPerformanceCounters.IncrementBytesReceived);
             }
 
-            FtpLogEntry logEntry = new FtpLogEntry
+            var logEntry = new FtpLogEntry
             {
                 Date = DateTime.Now,
                 CIP = ClientIP,
@@ -1387,28 +1393,36 @@ namespace SharpServer.Ftp
             return GetResponse(FtpResponses.TRANSFER_SUCCESSFUL);
         }
 
-        private Response NameListOperation(NetworkStream dataStream, string pathname)
+        private Response NameListOperation(NetworkStream dataStream, String pathname)
         {
-            StreamWriter dataWriter = new StreamWriter(dataStream, _currentEncoding);
+            var dataWriter = new StreamWriter(dataStream, _currentEncoding);
 
-            IEnumerable<string> files = Directory.EnumerateFiles(pathname);
+				try
+				{
+					var files = Directory.EnumerateFiles(pathname);
 
-            foreach (string file in files)
-            {
-                dataWriter.WriteLine(Path.GetFileName(file));
-                dataWriter.Flush();
-            }
+					foreach (var file in files)
+					{
+						dataWriter.WriteLine(Path.GetFileName(file));
+						dataWriter.Flush();
+						_log.DebugFormat("file={0}", file);
+					}
 
-            FtpLogEntry logEntry = new FtpLogEntry
-            {
-                Date = DateTime.Now,
-                CIP = ClientIP,
-                CSMethod = "NLST",
-                CSUsername = _username,
-                SCStatus = "226"
-            };
-
-            _log.Info(logEntry);
+					var logEntry = new FtpLogEntry
+					{
+						Date = DateTime.Now,
+						CIP = ClientIP,
+						CSMethod = "NLST",
+						CSUsername = _username,
+						SCStatus = "226"
+					};
+					_log.Info(logEntry);
+				}
+				catch (Exception ex)
+				{
+					var dummy = ex;
+					_log.ErrorFormat("invalid pathname={0}",pathname);
+				}
 
             return GetResponse(FtpResponses.TRANSFER_SUCCESSFUL);
         }
