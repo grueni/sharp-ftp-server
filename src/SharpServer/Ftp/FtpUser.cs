@@ -22,7 +22,10 @@ namespace SharpServer
 		 [DataMember]
 		 public string TwoFactorSecret { get; set; }
 
-        public bool IsAnonymous { get; set; }
+		 [DataMember]
+		 public Boolean UseDirectoryPerSession { get; set; }
+
+		 public bool IsAnonymous { get; set; }
     }
 
 	[Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
@@ -48,6 +51,7 @@ namespace SharpServer
 							UserName = "rick",
 							Password = "test",
 							HomeDir = gHomeDir,
+							UseDirectoryPerSession = false,
 							IsAnonymous = false
 						});
 						users.Add(new FtpUser
@@ -55,6 +59,7 @@ namespace SharpServer
 							UserName = @"xxxxx",
 							Password = "xxxxx",
 							HomeDir = @"s:\test\",
+							UseDirectoryPerSession = false,
 							IsAnonymous = false
 						});
 					}

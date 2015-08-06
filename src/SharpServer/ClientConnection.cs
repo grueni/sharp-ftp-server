@@ -250,8 +250,6 @@ namespace SharpServer
 
             _commandBuffer.Append(line);
 
-            _log.Debug(line);
-
             // We don't have the full message yet, so keep reading.
             if (!_commandBuffer.EndsWith(ExpectedTerminator))
             {
@@ -260,8 +258,6 @@ namespace SharpServer
             }
 
             string command = _commandBuffer.ToString().Trim();
-
-            _log.Debug(command);
 
             Command cmd = ParseCommandLine(command);
 

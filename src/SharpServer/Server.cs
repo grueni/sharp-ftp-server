@@ -199,11 +199,13 @@ namespace SharpServer
 				  Indent = true,
 				  IndentChars = "\t"
 			  };
-			  using (XmlWriter writer = XmlWriter.Create(new FileStream(fileName, FileMode.Create), settings))
+			  using (var filestream = new FileStream(fileName, FileMode.Create))
+			  using (var writer = XmlWriter.Create(filestream, settings))
 			  {
 				  var serializer = new DataContractSerializer(typeof(T));
 				  serializer.WriteObject(writer, t);
 				  writer.Close();
+				  filestream.Close();
 			  }
 			  //using (var writer = new FileStream(fileName, FileMode.Create))
 			  //{

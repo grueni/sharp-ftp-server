@@ -177,6 +177,49 @@ namespace SharpServer.Ftp
             _renameFrom = null;
         }
 
+		  private FtpUser currentUser
+		  {
+			  get { return _currentUser; }
+			  set
+			  {
+				  if (value == null)
+				  {
+					  _root = null;
+					  _currentDirectory = null;
+					  _username = null;
+					  if (_currentUser.IsAnonymous)
+						  FtpPerformanceCounters.IncrementAnonymousUsers();
+					  else
+						  FtpPerformanceCounters.IncrementNonAnonymousUsers();
+					  _currentUser = value;
+				  }
+				  else
+				  {
+					  _currentUser = value;
+					  if (_currentUser.UseDirectoryPerSession)
+					  {
+						  var guid = Guid.NewGuid().ToString();
+						  _root = Path.Combine(_currentUser.HomeDir,guid);
+						  _currentDirectory = _root;
+						  if (!Directory.Exists(_root)) { Directory.CreateDirectory(_root); }
+						  else
+						  {
+							  _log.ErrorFormat("Directory already exists - nearly impossible : {0}", _root);
+						  }
+					  }
+					  else
+					  {
+						  _root = _currentUser.HomeDir;
+						  _currentDirectory = _root;
+					  }
+					  if (_currentUser.IsAnonymous)
+						  FtpPerformanceCounters.IncrementAnonymousUsers();
+					  else
+						  FtpPerformanceCounters.IncrementNonAnonymousUsers();
+				  }
+			  }
+		  }
+
         #region Overrides
 
         protected override Response HandleCommand(Command cmd)
@@ -226,12 +269,10 @@ namespace SharpServer.Ftp
 									break;
 							  case "REIN":
 									_currentUser = null;
-									_username = null;
 									_dataClient = null;
 									_currentCulture = CultureInfo.CurrentCulture;
 									_currentEncoding = Encoding.ASCII;
 									ControlStreamEncoding = Encoding.ASCII;
-
 									response = GetResponse(FtpResponses.SERVICE_READY);
 									break;
 							  case "PORT":
@@ -415,8 +456,8 @@ namespace SharpServer.Ftp
                 {
                     _disposed = true;
 
-                    if (_currentUser != null)
-                        if (_currentUser.IsAnonymous)
+                    if (currentUser != null)
+                        if (currentUser.IsAnonymous)
                             FtpPerformanceCounters.DecrementAnonymousUsers();
                         else
                             FtpPerformanceCounters.DecrementNonAnonymousUsers();
@@ -507,7 +548,7 @@ namespace SharpServer.Ftp
 
         private Response CheckUser()
         {
-            if (_currentUser == null)
+            if (currentUser == null)
             {
                 return GetResponse(FtpResponses.NOT_LOGGED_IN);
             }
@@ -556,37 +597,33 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response Password(string password)
         {
+			  Response rc = null;
+			  try
+			  {
+				  var user = FtpUserStore.Validate(UserStore, _username, password);
 
-			  _log.DebugFormat("UserStore={0}", UserStore);
-            FtpUser user = FtpUserStore.Validate(UserStore, _username, password);
-
-            if (user != null)
-            {
-                if (!string.IsNullOrEmpty(user.TwoFactorSecret))
-                {
-                    _password = password;
-
-                    return GetResponse(FtpResponses.NEED_TWO_FACTOR_CODE);
-                }
-                else
-                {
-                    _currentUser = user;
-
-                    _root = _currentUser.HomeDir;
-                    _currentDirectory = _root;
-
-                    if (_currentUser.IsAnonymous)
-                        FtpPerformanceCounters.IncrementAnonymousUsers();
-                    else
-                        FtpPerformanceCounters.IncrementNonAnonymousUsers();
-
-                    return GetResponse(FtpResponses.LOGGED_IN);
-                }
-            }
-            else
-            {
-                return GetResponse(FtpResponses.NOT_LOGGED_IN);
-            }
+				  if (user != null)
+				  {
+					  if (!string.IsNullOrEmpty(user.TwoFactorSecret))
+					  {
+						  _password = password;
+						  rc = GetResponse(FtpResponses.NEED_TWO_FACTOR_CODE);
+					  }
+					  else
+					  {
+						  currentUser = user;
+						  rc = GetResponse(FtpResponses.LOGGED_IN);
+					  }
+				  }
+				  else
+				  {
+					  rc = GetResponse(FtpResponses.NOT_LOGGED_IN);
+				  }
+			  }	
+			  catch (Exception ex) {
+					_log.ErrorFormat("{0}\n{1}",ex.Message,ex.StackTrace);
+			  }
+			  return (rc != null) ? rc : GetResponse(FtpResponses.NOT_LOGGED_IN);
         }
 
         /// <summary>
@@ -596,13 +633,11 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response Account(string twoFactorCode)
         {
-			  _currentUser = FtpUserStore.ValidatetwoFactorCode(_username, _password, twoFactorCode);
+			  var user = FtpUserStore.ValidatetwoFactorCode(_username, _password, twoFactorCode);
 
-            if (_currentUser != null)
+            if (user != null)
             {
-                _root = _currentUser.HomeDir;
-                _currentDirectory = _root;
-
+					currentUser = user;
                 return GetResponse(FtpResponses.LOGGED_IN);
             }
             else
