@@ -29,6 +29,7 @@ namespace SharpServer
     public static class FtpUserStore
     {
         private static List<FtpUser> _users;
+		 private static String gHomeDir = @"p:\temp\ftphome\";
 
         static FtpUserStore()
         {
@@ -42,12 +43,18 @@ namespace SharpServer
             }
             else
             {
-                _users.Add(new FtpUser
-                {
-                    UserName = "rick",
-                    Password = "test",
-                    HomeDir = "C:\\Utils"
-                });
+					_users.Add(new FtpUser
+					{
+						UserName = "rick",
+						Password = "test",
+						HomeDir = gHomeDir
+					});
+					_users.Add(new FtpUser
+					{
+						UserName = @"xxxxx",
+						Password = "xxxxx",
+						HomeDir = @"s:\test\"
+					});
 
                 using (StreamWriter w = new StreamWriter("users.xml"))
                 {
@@ -65,9 +72,9 @@ namespace SharpServer
                 user = new FtpUser
                 {
                     UserName = username,
-                    HomeDir = "C:\\Utils",
-                    IsAnonymous = true
-                };
+                	  HomeDir = gHomeDir,
+						  IsAnonymous = true
+					 };
             }
 
             return user;

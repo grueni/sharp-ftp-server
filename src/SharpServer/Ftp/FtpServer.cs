@@ -9,25 +9,10 @@ namespace SharpServer.Ftp
         private DateTime _startTime;
         private Timer _timer;
 
-        public FtpServer(string logHeader = null)
-            : this(IPAddress.Any, 21, logHeader)
-        {
-        }
-
-        public FtpServer(int port, string logHeader = null)
-            : this(IPAddress.Any, port, logHeader)
-        {
-        }
-
-        public FtpServer(IPAddress ipAddress, int port, string logHeader = null)
-            : this(new IPEndPoint[] { new IPEndPoint(ipAddress, port) }, logHeader)
-        {
-        }
-
-        public FtpServer(IPEndPoint[] localEndPoints, string logHeader = null)
-            : base(localEndPoints, logHeader)
-        {
-            foreach (var endPoint in localEndPoints)
+        public FtpServer(FtpConfig ftpConfig, string logHeader = null) 
+			  :base(ftpConfig.LocalEndPoints,logHeader)
+		  {
+            foreach (var endPoint in ftpConfig.LocalEndPoints)
             {
                 FtpPerformanceCounters.Initialize(endPoint.Port);
             }

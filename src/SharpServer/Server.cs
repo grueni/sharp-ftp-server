@@ -40,36 +40,38 @@ namespace SharpServer
 
         public void Start()
         {
+			  Boolean rc = true;
             if (_disposed)
                 throw new ObjectDisposedException("AsyncServer");
 
-            _log.Info(_logHeader);
+            _log.Info("#" + _logHeader);
             _state = new List<T>();
             _listeners = new List<TcpListener>();
 
             foreach (var localEndPoint in _localEndPoints)
             {
-                TcpListener listener = new TcpListener(localEndPoint);
-
+					String text = String.Format("This local end point is currently in use AddressFamily={0} Address={1} Port={2}",
+							  localEndPoint.AddressFamily, localEndPoint.Address, localEndPoint.Port);
+					TcpListener listener;
                 try
                 {
-                    listener.Start();
-                }
+						 listener = new TcpListener(localEndPoint);
+						 listener.Start();
+						 listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
+						 _listeners.Add(listener);
+					 }
                 catch (SocketException ex)
                 {
-                    Dispose();
+						  _log.ErrorFormat(text);
+						  Dispose();
+						  rc = false;
+					 }
 
-                    throw new Exception("The current local end point is currently in use. Please specify another IP or port to listen on.");
-                }
-
-                listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
-
-                _listeners.Add(listener);
             }
-
-            _listening = true;
-
-            OnStart();
+				if (rc) {
+					_listening = true;
+					OnStart();
+				}
         }
 
         public void Stop()

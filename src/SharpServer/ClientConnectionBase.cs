@@ -23,7 +23,7 @@ namespace SharpServer
         protected abstract void Write(string content);
         protected abstract Response HandleCommand(Command cmd);
 
-        protected virtual Response HandleCommand(string cmd)
+        protected virtual Response HandleCommand(String cmd)
         {
             return HandleCommand(ParseCommandLine(cmd));
         }
