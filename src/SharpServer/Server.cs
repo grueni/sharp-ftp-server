@@ -2,7 +2,10 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Serialization;
 using log4net;
+using System.Xml;
+using System.IO;
 
 namespace SharpServer
 {
@@ -21,6 +24,7 @@ namespace SharpServer
         private bool _listening = false;
         private List<IPEndPoint> _localEndPoints;
         private string _logHeader;
+		  private String _userStore;
 
         public Server(int port, string logHeader = null)
             : this(IPAddress.Any, port, logHeader)
@@ -32,20 +36,28 @@ namespace SharpServer
         {
         }
 
-        public Server(IPEndPoint[] localEndPoints, string logHeader = null)
-        {
-            _localEndPoints = new List<IPEndPoint>(localEndPoints);
-            _logHeader = logHeader;
-        }
+		  public Server(IPEndPoint[] localEndPoints, String userStore, String logHeader = null)
+		  {
+			  _userStore = userStore;
+			  _localEndPoints = new List<IPEndPoint>(localEndPoints);
+			  _logHeader = logHeader;
+			  _log.DebugFormat("_userStore={0}", _userStore);
+		  }
 
-        public void Start()
+		  public Server(IPEndPoint[] localEndPoints, string logHeader = null)
+		  {
+			  _localEndPoints = new List<IPEndPoint>(localEndPoints);
+			  _logHeader = logHeader;
+		  }
+
+		  public void Start()
         {
 			  Boolean rc = true;
             if (_disposed)
                 throw new ObjectDisposedException("AsyncServer");
 
-            _log.Info("#" + _logHeader);
-            _state = new List<T>();
+				_log.Info("# Starting Server");
+				_state = new List<T>();
             _listeners = new List<TcpListener>();
 
             foreach (var localEndPoint in _localEndPoints)
@@ -112,8 +124,8 @@ namespace SharpServer
                 listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
 
                 TcpClient client = listener.EndAcceptTcpClient(result);
-
-                var connection = new T();
+					 _log.DebugFormat("_userStore={0}", _userStore);
+					 var connection = new T() { UserStore = _userStore};
 
                 connection.Disposed += new EventHandler<EventArgs>(AsyncClientConnection_Disposed);
 
@@ -168,5 +180,38 @@ namespace SharpServer
 
             _disposed = true;
         }
-    }
+
+		  public static T Deserialize<T>(string fileName)
+		  {
+			  T t;
+			  using (var reader = new FileStream(fileName, FileMode.Open))
+			  {
+				  var serializer = new DataContractSerializer(typeof(T));
+				  t = (T)serializer.ReadObject(reader);
+				  reader.Close();
+			  }
+			  return t;
+		 }
+		  public static void Serialize<T>(string fileName, T t)
+		  {
+			  var settings = new XmlWriterSettings()
+			  {
+				  Indent = true,
+				  IndentChars = "\t"
+			  };
+			  using (XmlWriter writer = XmlWriter.Create(new FileStream(fileName, FileMode.Create), settings))
+			  {
+				  var serializer = new DataContractSerializer(typeof(T));
+				  serializer.WriteObject(writer, t);
+				  writer.Close();
+			  }
+			  //using (var writer = new FileStream(fileName, FileMode.Create))
+			  //{
+			  //   var serializer = new DataContractSerializer(typeof(T));
+			  //   serializer.WriteObject(writer, t);
+			  //   writer.Close();
+			  //}
+		  }
+
+	 }
 }

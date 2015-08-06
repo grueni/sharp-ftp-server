@@ -10,6 +10,12 @@ namespace SharpServer
     {
         public event EventHandler<EventArgs> Disposed;
 
+		  private String _userStore;
+		  public String UserStore { 
+			  get { return _userStore; } 
+			  set { _userStore = value; } 
+		  }
+
         private bool _disposed = false;
 
         #region Private Fields

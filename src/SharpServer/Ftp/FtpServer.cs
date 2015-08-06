@@ -6,17 +6,21 @@ namespace SharpServer.Ftp
 {
     public class FtpServer : Server<FtpClientConnection>
     {
-        private DateTime _startTime;
-        private Timer _timer;
+			private FtpConfig _ftpConfig;
+			private DateTime _startTime;
+			private Timer _timer;
 
-        public FtpServer(FtpConfig ftpConfig, string logHeader = null) 
-			  :base(ftpConfig.LocalEndPoints,logHeader)
-		  {
-            foreach (var endPoint in ftpConfig.LocalEndPoints)
-            {
-                FtpPerformanceCounters.Initialize(endPoint.Port);
-            }
-        }
+			public FtpServer(FtpConfig ftpConfig, string logHeader = null) 
+				:base(ftpConfig.LocalEndPoints,ftpConfig.UserStore, logHeader)
+			{
+				_ftpConfig = ftpConfig;
+				foreach (var endPoint in ftpConfig.LocalEndPoints)
+				{
+					FtpPerformanceCounters.Initialize(endPoint.Port);
+				}
+			}
+
+			public FtpConfig ftpConfig { get { return _ftpConfig; } }
 
         protected override void OnConnectAttempt()
         {

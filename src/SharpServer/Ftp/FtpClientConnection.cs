@@ -556,7 +556,9 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response Password(string password)
         {
-            FtpUser user = FtpUserStore.Validate(_username, password);
+
+			  _log.DebugFormat("UserStore={0}", UserStore);
+            FtpUser user = FtpUserStore.Validate(UserStore, _username, password);
 
             if (user != null)
             {
@@ -594,7 +596,7 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response Account(string twoFactorCode)
         {
-            _currentUser = FtpUserStore.Validate(_username, _password, twoFactorCode);
+			  _currentUser = FtpUserStore.ValidatetwoFactorCode(_username, _password, twoFactorCode);
 
             if (_currentUser != null)
             {

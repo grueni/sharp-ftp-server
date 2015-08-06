@@ -2,95 +2,88 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Xml.Serialization;
 
 namespace SharpServer
 {
-    [Serializable]
+    [DataContract]
     public class FtpUser
     {
-        [XmlAttribute("username")]
-        public string UserName { get; set; }
+		 [DataMember]
+		 public string UserName { get; set; }
 
-        [XmlAttribute("password")]
+		 [DataMember]
         public string Password { get; set; }
 
-        [XmlAttribute("homedir")]
-        public string HomeDir { get; set; }
+		 [DataMember]
+		 public string HomeDir { get; set; }
 
-        [XmlAttribute("twofactorsecret")]
-        public string TwoFactorSecret { get; set; }
+		 [DataMember]
+		 public string TwoFactorSecret { get; set; }
 
-        [XmlIgnore]
         public bool IsAnonymous { get; set; }
     }
 
-    [Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
-    public static class FtpUserStore
-    {
-        private static List<FtpUser> _users;
-		 private static String gHomeDir = @"p:\temp\ftphome\";
+	[Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
+	public static class FtpUserStore
+	{
+		private static String userStore;
+		private static String gHomeDir = @"p:\temp\ftphome\";
 
-        static FtpUserStore()
-        {
-            _users = new List<FtpUser>();
-
-            XmlSerializer serializer = new XmlSerializer(_users.GetType(), new XmlRootAttribute("Users"));
-
-            if (File.Exists("users.xml"))
-            {
-                _users = serializer.Deserialize(new StreamReader("users.xml")) as List<FtpUser>;
-            }
-            else
-            {
-					_users.Add(new FtpUser
+		private static List<FtpUser> _users {
+			get
+			{
+				var users = new List<FtpUser>();
+				if (!String.IsNullOrEmpty(userStore))
+				{
+					if (File.Exists(userStore))
 					{
-						UserName = "rick",
-						Password = "test",
-						HomeDir = gHomeDir
-					});
-					_users.Add(new FtpUser
+						users = Ftp.FtpServer.Deserialize<List<FtpUser>>(userStore);
+					}
+					else
 					{
-						UserName = @"xxxxx",
-						Password = "xxxxx",
-						HomeDir = @"s:\test\"
-					});
+						users.Add(new FtpUser
+						{
+							UserName = "rick",
+							Password = "test",
+							HomeDir = gHomeDir,
+							IsAnonymous = false
+						});
+						users.Add(new FtpUser
+						{
+							UserName = @"xxxxx",
+							Password = "xxxxx",
+							HomeDir = @"s:\test\",
+							IsAnonymous = false
+						});
+					}
+					Ftp.FtpServer.Serialize<List<FtpUser>>(userStore, users);
+				}
+				return users;
+			}
+		}
 
-                using (StreamWriter w = new StreamWriter("users.xml"))
-                {
-                    serializer.Serialize(w, _users);
-                }
-            }
-        }
+		static FtpUserStore()
+		{
+		}
 
-        public static FtpUser Validate(string username, string password)
-        {
-            FtpUser user = (from u in _users where u.UserName == username && u.Password == password select u).SingleOrDefault();
-
-            if (user == null)
-            {
-                user = new FtpUser
-                {
-                    UserName = username,
-                	  HomeDir = gHomeDir,
-						  IsAnonymous = true
-					 };
-            }
-
-            return user;
-        }
+		public static FtpUser Validate(String userstore, String username, String password)
+		{
+			userStore = userstore;
+			FtpUser user = (username.ToLower().Equals("anonymous")) ?
+				new FtpUser { UserName = username, HomeDir = gHomeDir, IsAnonymous = true }
+				:
+				(from u in _users where u.UserName == username && u.Password == password select u).SingleOrDefault();
+			;
+			return user;
+		}
 
 
-        public static FtpUser Validate(string username, string password, string twoFactorCode)
-        {
-            FtpUser user = (from u in _users where u.UserName == username && u.Password == password select u).SingleOrDefault();
-
-            if (TwoFactor.TimeBasedOneTimePassword.IsValid(user.TwoFactorSecret, twoFactorCode))
-            {
-                return user;
-            }
-
-            return null;
-        }
-    }
+		public static FtpUser ValidatetwoFactorCode(string username, string password, string twoFactorCode)
+		{
+			FtpUser user = (from u in _users where u.UserName == username && u.Password == password select u).SingleOrDefault();
+			return (TwoFactor.TimeBasedOneTimePassword.IsValid(user.TwoFactorSecret, twoFactorCode)) ? user : null;
+		}
+	}
 }

@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Net;
+using System.Runtime.Serialization;
 
 namespace SharpServer.Ftp
 {
-	[Serializable]
+	[DataContract]
 	public class FtpConfig
 	{
+
 		public FtpConfig(String ftproot = null, String userStore = null, String iPAddressV4 = null, int iPPortV4 = 21, String iPAddressV6 = null, int iPPortV6 = 21)
 		{
 			Ftproot = ftproot;
@@ -19,14 +21,22 @@ namespace SharpServer.Ftp
 			IPPortV6 = iPPortV6;
 		}
 
+		[DataMember]
 		public String Ftproot { get; set; }
 
+		[DataMember]
 		public String UserStore { get; set; }
 
+		[DataMember]
 		public String IPAddressV4 { get; set; }
+
+		[DataMember]
 		public int IPPortV4 { get; set; }
 
+		[DataMember]
 		public String IPAddressV6 { get; set; }
+
+		[DataMember]
 		public int IPPortV6 { get; set; }
 
 		public IPEndPoint[] LocalEndPoints
