@@ -70,8 +70,8 @@ namespace SharpServer.Ftp
         private static class FtpResponses
         {
             public static readonly Response QUIT = new Response { Code = "221", Text = FtpReplies.QUIT, ShouldQuit = true };
-            public static readonly Response UNABLE_TO_OPEN_DATA_CONNECTION = new Response { Code = "500", Text = FtpReplies.UNABLE_TO_OPEN_DATA_CONNECTION, ShouldQuit = true };
-
+            public static readonly Response UNABLE_TO_OPEN_DATA_CONNECTION = new Response { Code = "425", Text = FtpReplies.UNABLE_TO_OPEN_DATA_CONNECTION, ShouldQuit = true };
+				public static readonly Response CANNOT_OPEN_DATACONNECTION = new Response { Code = "500", ResourceManager = FtpReplies.ResourceManager, Text = "SYNTAX_ERROR" };
             public static readonly Response SYSTEM = new Response { Code = "215", ResourceManager = FtpReplies.ResourceManager, Text = "SYSTEM" };
             public static readonly Response SERVICE_READY = new Response { Code = "220", ResourceManager = FtpReplies.ResourceManager, Text = "SERVICE_READY" };
             public static readonly Response NOT_IMPLEMENTED = new Response { Code = "502", ResourceManager = FtpReplies.ResourceManager, Text = "NOT_IMPLEMENTED" };
@@ -375,6 +375,14 @@ namespace SharpServer.Ftp
             FtpPerformanceCounters.IncrementCurrentConnections();
 
             _connected = true;
+				//if (((FtpServer)CurrentServer).Config.Welcome != null)
+				//{
+				//   Write(new Response { Code = "220-", Text = "Connected" });
+				//   foreach (var welcome in ((FtpServer)CurrentServer).Config.Welcome)
+				//   {
+				//      Write(new Response { Code = "", Text = welcome });
+				//   }
+				//}
 
             Write(GetResponse(FtpResponses.SERVICE_READY));
 
@@ -662,7 +670,7 @@ namespace SharpServer.Ftp
             if (BitConverter.IsLittleEndian)
                 Array.Reverse(port);
 
-            _dataEndpoint = new IPEndPoint(new IPAddress(ipAddress), BitConverter.ToInt16(port, 0));
+            _dataEndpoint = new IPEndPoint(new IPAddress(ipAddress), BitConverter.ToUInt16(port, 0));
 
             return GetResponse(FtpResponses.OK);
         }
@@ -969,7 +977,7 @@ namespace SharpServer.Ftp
         /// <summary>
         /// RMD Command - RFC 959 - Section 4.1.3
         /// </summary>
-        /// <param name="username"></param>
+		  /// <param name="pathname"></param>
         /// <returns></returns>
         private Response RemoveDir(string pathname)
         {
@@ -1160,7 +1168,7 @@ namespace SharpServer.Ftp
         /// </summary>
         /// <param name="lang"></param>
         /// <returns></returns>
-        private Response Language(string language)
+        private Response Language(String language)
         {
             try
             {
@@ -1171,19 +1179,18 @@ namespace SharpServer.Ftp
                 if (rs == null)
                 {
                     _currentCulture = CultureInfo.CurrentCulture;
-                    return new Response { Code = "504", Text = "Language not implemented, using en-US" };
+                    return new Response { Code = "504", Text = String.Format("Language {0} not implemented, using en-US",language) };
                 }
                 else
                 {
                     _currentCulture = culture;
-
-                    return new Response { Code = "200", Text = "Changed language to what you asked for" };
+						  return new Response { Code = "200", Text = string.Format("Language Changed to {0}", _currentCulture) };
                 }
             }
             catch
             {
                 _currentCulture = CultureInfo.CurrentCulture;
-                return new Response { Code = "500", Text = "Invalid language, using en-US" };
+					 return new Response { Code = "500", Text = String.Format("Invalid language {0}, using default language {1}", language,_currentCulture) };
             }
         }
 
@@ -1395,13 +1402,18 @@ namespace SharpServer.Ftp
 
 				try
 				{
+					var dirs = Directory.EnumerateDirectories(pathname);
 					var files = Directory.EnumerateFiles(pathname);
 
+					foreach (var dir in dirs)
+					{
+						dataWriter.WriteLine(Path.GetFileName(dir));
+						dataWriter.Flush();
+					}
 					foreach (var file in files)
 					{
 						dataWriter.WriteLine(Path.GetFileName(file));
 						dataWriter.Flush();
-						_log.DebugFormat("file={0}", file);
 					}
 
 					var logEntry = new FtpLogEntry
