@@ -202,168 +202,164 @@ namespace SharpServer.Ftp
                 _renameFrom = null;
             }
 
-            if (response == null)
-            {
-                switch (cmd.Code)
-                {
-                    case "USER":
-                        response = User(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "PASS":
-                        response = Password(cmd.Arguments.FirstOrDefault());
-                        logEntry.CSUriStem = "******";
-                        break;
-                    case "CWD":
-                        response = ChangeWorkingDirectory(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "CDUP":
-                        response = ChangeWorkingDirectory("..");
-                        break;
-                    case "QUIT":
-                        response = GetResponse(FtpResponses.QUIT);
-                        break;
-                    case "REIN":
-                        _currentUser = null;
-                        _username = null;
-                        _dataClient = null;
-                        _currentCulture = CultureInfo.CurrentCulture;
-                        _currentEncoding = Encoding.ASCII;
-                        ControlStreamEncoding = Encoding.ASCII;
+				try
+				{
+					if (response == null)
+					{
+						 switch (cmd.Code)
+						 {
+							  case "USER":
+									response = User(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "PASS":
+									response = Password(cmd.Arguments.FirstOrDefault());
+									logEntry.CSUriStem = "******";
+									break;
+							  case "CWD":
+									response = ChangeWorkingDirectory(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "CDUP":
+									response = ChangeWorkingDirectory("..");
+									break;
+							  case "QUIT":
+									response = GetResponse(FtpResponses.QUIT);
+									break;
+							  case "REIN":
+									_currentUser = null;
+									_username = null;
+									_dataClient = null;
+									_currentCulture = CultureInfo.CurrentCulture;
+									_currentEncoding = Encoding.ASCII;
+									ControlStreamEncoding = Encoding.ASCII;
 
-                        response = GetResponse(FtpResponses.SERVICE_READY);
-                        break;
-                    case "PORT":
-                        response = Port(cmd.RawArguments);
-                        logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
-                        break;
-                    case "PASV":
-                        response = Passive();
-                        logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
-                        break;
-                    case "TYPE":
-                        response = Type(cmd.Arguments.FirstOrDefault(), cmd.Arguments.Skip(1).FirstOrDefault());
-                        break;
-                    case "STRU":
-                        response = Structure(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "MODE":
-                        response = Mode(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "RNFR":
-                        _renameFrom = cmd.Arguments.FirstOrDefault();
-                        response = GetResponse(FtpResponses.RENAME_FROM);
-                        break;
-                    case "RNTO":
-                        response = Rename(_renameFrom, cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "DELE":
-                        response = Delete(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "RMD":
-                        response = RemoveDir(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "MKD":
-                        response = CreateDir(cmd.Arguments.FirstOrDefault());
-                        break;
-						  case "XPWD":
-						  case "PWD":
-								response = PrintWorkingDirectory();
-								break;
-						  case "RETR":
-                        response = Retrieve(cmd.Arguments.FirstOrDefault());
-                        logEntry.Date = DateTime.Now;
-                        break;
-                    case "STOR":
-                        response = Store(cmd.Arguments.FirstOrDefault());
-                        logEntry.Date = DateTime.Now;
-                        break;
-                    case "STOU":
-                        response = StoreUnique();
-                        logEntry.Date = DateTime.Now;
-                        break;
-                    case "APPE":
-                        response = Append(cmd.Arguments.FirstOrDefault());
-                        logEntry.Date = DateTime.Now;
-                        break;
-                    case "LIST":
-                        response = List(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
-                        logEntry.Date = DateTime.Now;
-                        break;
-                    case "SYST":
-                        response = GetResponse(FtpResponses.SYSTEM);
-                        break;
-                    case "NOOP":
-                        response = GetResponse(FtpResponses.OK);
-                        break;
-                    case "ACCT":
-                        response = Account(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "ALLO":
-                        response = GetResponse(FtpResponses.OK);
-                        break;
-                    case "NLST":
-                        response = NameList(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
-                        break;
-                    case "SITE":
-                        response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-                        break;
-                    case "STAT":
-                        response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-                        break;
-                    case "HELP":
-                        response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-                        break;
-                    case "SMNT":
-                        response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-                        break;
-                    case "REST":
-                        response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-                        break;
-                    case "ABOR":
-                        response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-                        break;
+									response = GetResponse(FtpResponses.SERVICE_READY);
+									break;
+							  case "PORT":
+									response = Port(cmd.RawArguments);
+									logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
+									break;
+							  case "PASV":
+									response = Passive();
+									logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
+									break;
+							  case "TYPE":
+									response = Type(cmd.Arguments.FirstOrDefault(), cmd.Arguments.Skip(1).FirstOrDefault());
+									break;
+							  case "STRU":
+									response = Structure(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "MODE":
+									response = Mode(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "RNFR":
+									_renameFrom = cmd.Arguments.FirstOrDefault();
+									response = GetResponse(FtpResponses.RENAME_FROM);
+									break;
+							  case "RNTO":
+									response = Rename(_renameFrom, cmd.Arguments.FirstOrDefault());
+									break;
+							  case "DELE":
+									response = Delete(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "RMD":
+									response = RemoveDir(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "MKD":
+									response = CreateDir(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "XPWD":
+							  case "PWD":
+									response = PrintWorkingDirectory();
+									break;
+							  case "RETR":
+									response = Retrieve(cmd.Arguments.FirstOrDefault());
+									logEntry.Date = DateTime.Now;
+									break;
+							  case "STOR":
+									response = Store(cmd.Arguments.FirstOrDefault());
+									logEntry.Date = DateTime.Now;
+									break;
+							  case "STOU":
+									response = StoreUnique();
+									logEntry.Date = DateTime.Now;
+									break;
+							  case "APPE":
+									response = Append(cmd.Arguments.FirstOrDefault());
+									logEntry.Date = DateTime.Now;
+									break;
+							  case "LIST":
+									response = List(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
+									logEntry.Date = DateTime.Now;
+									break;
+							  case "SYST":
+									response = GetResponse(FtpResponses.SYSTEM);
+									break;
+							  case "NOOP":
+									response = GetResponse(FtpResponses.OK);
+									break;
+							  case "ACCT":
+									response = Account(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "ALLO":
+									response = GetResponse(FtpResponses.OK);
+									break;
+							  case "NLST":
+									response = NameList(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
+									break;
+							  case "SITE":
+							  case "STAT":
+							  case "HELP":
+							  case "SMNT":
+							  case "REST":
+							  case "ABOR":
+									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
+									break;
 
-                    // Extensions defined by rfc 2228
-                    case "AUTH":
-                        response = Auth(cmd.Arguments.FirstOrDefault());
-                        break;
+							  // Extensions defined by rfc 2228
+							  case "AUTH":
+									response = Auth(cmd.Arguments.FirstOrDefault());
+									break;
 
-                    // Extensions defined by rfc 2389
-                    case "FEAT":
-                        response = GetResponse(FtpResponses.FEATURES);
-                        break;
-                    case "OPTS":
-                        response = Options(cmd.Arguments);
-                        break;
+							  // Extensions defined by rfc 2389
+							  case "FEAT":
+									response = GetResponse(FtpResponses.FEATURES);
+									break;
+							  case "OPTS":
+									response = Options(cmd.Arguments);
+									break;
 
-                    // Extensions defined by rfc 3659
-                    case "MDTM":
-                        response = FileModificationTime(cmd.Arguments.FirstOrDefault());
-                        break;
-                    case "SIZE":
-                        response = FileSize(cmd.Arguments.FirstOrDefault());
-                        break;
+							  // Extensions defined by rfc 3659
+							  case "MDTM":
+									response = FileModificationTime(cmd.Arguments.FirstOrDefault());
+									break;
+							  case "SIZE":
+									response = FileSize(cmd.Arguments.FirstOrDefault());
+									break;
 
-                    // Extensions defined by rfc 2428
-                    case "EPRT":
-                        response = EPort(cmd.RawArguments);
-                        logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
-                        break;
-                    case "EPSV":
-                        response = EPassive();
-                        logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
-                        break;
+							  // Extensions defined by rfc 2428
+							  case "EPRT":
+									response = EPort(cmd.RawArguments);
+									logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
+									break;
+							  case "EPSV":
+									response = EPassive();
+									logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
+									break;
 
-                    // Extensions defined by rfc 2640
-                    case "LANG":
-                        response = Language(cmd.Arguments.FirstOrDefault());
-                        break;
+							  // Extensions defined by rfc 2640
+							  case "LANG":
+									response = Language(cmd.Arguments.FirstOrDefault());
+									break;
 
-                    default:
-                        response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-                        break;
-                }
-            }
+							  default:
+									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
+									break;
+						 }
+					}
+				} catch (Exception ex)
+				{
+					_log.ErrorFormat("{0}\n{1}", ex.Message, ex.StackTrace);
+				}
 
             logEntry.CSMethod = cmd.Code;
             logEntry.CSUsername = _username;
