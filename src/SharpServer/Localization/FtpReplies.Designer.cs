@@ -70,7 +70,7 @@ namespace SharpServer.Localization {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die Directory already exists ähnelt.
+        ///   Sucht eine lokalisierte Zeichenfolge, die UniqueDirectory already exists ähnelt.
         /// </summary>
         internal static string DIRECTORY_EXISTS {
             get {
@@ -79,7 +79,7 @@ namespace SharpServer.Localization {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die Directory not found ähnelt.
+        ///   Sucht eine lokalisierte Zeichenfolge, die UniqueDirectory not found ähnelt.
         /// </summary>
         internal static string DIRECTORY_NOT_FOUND {
             get {

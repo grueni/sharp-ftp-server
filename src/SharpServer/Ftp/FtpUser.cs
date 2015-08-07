@@ -23,12 +23,37 @@ namespace SharpServer
 		 public string TwoFactorSecret { get; set; }
 
 		 [DataMember]
-		 public Boolean UseDirectoryPerSession { get; set; }
+		 public FtpUserPerSession PerSession { get; set; }
 
 		 public bool IsAnonymous { get; set; }
+
+		 public override String ToString() {
+			 return String.Format("UserName={0} HomeDir={1} PerSession={2}", UserName, HomeDir, PerSession);
+		 }
     }
 
-	[Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
+	 [DataContract]
+	 public class FtpUserPerSession
+	 {
+		 [DataMember]
+		 public Boolean UniqueDirectory { get; set; }
+
+		 [DataMember]
+		 public String PostJob { get; set; }
+
+		 [DataMember]
+		 public int PostJobTimeoutInSeconds { get; set; }
+
+		 [DataMember]
+		 public String BJSJobDirectory { get; set; }
+
+		 public override String ToString()
+		 {
+			 return String.Format("UniqueDirectory={0} PostJob={1} PostJobTimeoutInSeconds={2} BJSJobDirectory={3}", UniqueDirectory, PostJob, PostJobTimeoutInSeconds, BJSJobDirectory);
+		 }
+	 }
+
+//	[Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
 	public static class FtpUserStore
 	{
 		private static String userStore;
@@ -51,15 +76,15 @@ namespace SharpServer
 							UserName = "rick",
 							Password = "test",
 							HomeDir = gHomeDir,
-							UseDirectoryPerSession = false,
+							PerSession = new FtpUserPerSession { UniqueDirectory = false, BJSJobDirectory="changeme", PostJob = "changeme", PostJobTimeoutInSeconds = 1 },
 							IsAnonymous = false
 						});
 						users.Add(new FtpUser
 						{
-							UserName = @"xxxxx",
-							Password = "xxxxx",
-							HomeDir = @"s:\test\",
-							UseDirectoryPerSession = false,
+							UserName = @"changeme",
+							Password = "changeme",
+							HomeDir = @"changeme",
+							PerSession = new FtpUserPerSession { UniqueDirectory = false, BJSJobDirectory = "changeme", PostJob = "changeme", PostJobTimeoutInSeconds = 1 },
 							IsAnonymous = false
 						});
 					}

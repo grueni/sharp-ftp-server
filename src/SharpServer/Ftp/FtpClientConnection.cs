@@ -12,6 +12,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using SharpServer.Localization;
+using TwoPS.Processes;
 
 namespace SharpServer.Ftp
 {
@@ -177,6 +178,7 @@ namespace SharpServer.Ftp
             _renameFrom = null;
         }
 
+		 private Boolean _hasSTORed = false;
 		  private FtpUser currentUser
 		  {
 			  get { return _currentUser; }
@@ -187,6 +189,7 @@ namespace SharpServer.Ftp
 					  _root = null;
 					  _currentDirectory = null;
 					  _username = null;
+					  _hasSTORed = false;
 					  if (_currentUser.IsAnonymous)
 						  FtpPerformanceCounters.IncrementAnonymousUsers();
 					  else
@@ -196,7 +199,9 @@ namespace SharpServer.Ftp
 				  else
 				  {
 					  _currentUser = value;
-					  if (_currentUser.UseDirectoryPerSession)
+					  _log.DebugFormat("_currentUser={0}", _currentUser.ToString());
+					  _hasSTORed = false;
+					  if (_currentUser.PerSession.UniqueDirectory)
 					  {
 						  var guid = Guid.NewGuid().ToString();
 						  _root = Path.Combine(_currentUser.HomeDir,guid);
@@ -204,7 +209,7 @@ namespace SharpServer.Ftp
 						  if (!Directory.Exists(_root)) { Directory.CreateDirectory(_root); }
 						  else
 						  {
-							  _log.ErrorFormat("Directory already exists - nearly impossible : {0}", _root);
+							  _log.ErrorFormat("UniqueDirectory already exists - nearly impossible : {0}", _root);
 						  }
 					  }
 					  else
@@ -266,6 +271,7 @@ namespace SharpServer.Ftp
 									break;
 							  case "QUIT":
 									response = GetResponse(FtpResponses.QUIT);
+									if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob)) { Boolean rc = PerSessionPostJob(); }
 									break;
 							  case "REIN":
 									_currentUser = null;
@@ -396,17 +402,17 @@ namespace SharpServer.Ftp
 									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
 									break;
 						 }
+						 logEntry.CSMethod = cmd.Code;
+						 logEntry.CSUsername = _username;
+						 logEntry.SCStatus = response.Code;
+
+						 _log.Info(logEntry);
+
 					}
 				} catch (Exception ex)
 				{
 					_log.ErrorFormat("{0}\n{1}", ex.Message, ex.StackTrace);
 				}
-
-            logEntry.CSMethod = cmd.Code;
-            logEntry.CSUsername = _username;
-            logEntry.SCStatus = response.Code;
-
-            _log.Info(logEntry);
 
             return response;
         }
@@ -513,6 +519,34 @@ namespace SharpServer.Ftp
 
         #endregion
 
+		  private Boolean PerSessionPostJob()
+		  {
+			  Boolean rc = false;
+			  String job = _currentUser.PerSession.PostJob;
+			  if (File.Exists(job))
+			  {
+				  try
+				  {
+					  var process = new Process(job);
+					  process.Options.Add(_root);
+					  process.Options.Add(_currentUser.PerSession.BJSJobDirectory);
+					  process.Options.StandardOutputEncoding = Encoding.UTF8;
+					  process.Options.StandardErrorEncoding = Encoding.UTF8;
+					  process.Timeout = _currentUser.PerSession.PostJobTimeoutInSeconds;
+					  var result = process.Run();
+					  _log.DebugFormat("job={0} {1}   ExitCode={2} Status={3}\nStandardOutput={4}\nStandardError={5}", job, _root,
+						  result.ExitCode,result.Status,result.StandardOutput,result.StandardError);
+				  }
+				  catch (Exception ex)
+				  {
+					  _log.ErrorFormat("{0}\n{1}",ex.Message,ex.StackTrace);
+				  }
+			  }
+			  else
+				  _log.ErrorFormat("Datei nicht gefunden PerSessionPostJob={0}",job);
+			  return rc;
+		  }
+
         private bool IsPathValid(string path)
         {
             return path.StartsWith(_root, StringComparison.OrdinalIgnoreCase);
@@ -586,7 +620,7 @@ namespace SharpServer.Ftp
         {
             FtpPerformanceCounters.IncrementTotalLogonAttempts();
 
-            _username = username;
+            _username = username.Replace('/','\\' ).ToLower() ;
             return GetResponse(FtpResponses.USER_OK);
         }
 
@@ -898,6 +932,7 @@ namespace SharpServer.Ftp
 				if (Pathname != null)
 				{
 					_log.DebugFormat("STOR {0}",Pathname);
+					_hasSTORed = true;
 					var state = new DataConnectionOperation { Arguments = Pathname, Operation = StoreOperation };
 
 					SetupDataConnectionOperation(state);

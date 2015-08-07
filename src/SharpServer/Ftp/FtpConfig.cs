@@ -65,6 +65,12 @@ namespace SharpServer.Ftp
 			}
 		}
 
+		public override String ToString()
+		{
+			return String.Format("Ftproot={0} UserStore={1} IPAddressV4={2} IPPortV4={3} IPAddressV6={4} IPPortV6={5}", Ftproot, UserStore, IPAddressV4, IPPortV4, IPAddressV6, IPPortV6);
+		}
+
+
 		private IPEndPoint[] _localEndPoints;
 	}
 }

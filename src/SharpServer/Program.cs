@@ -28,9 +28,9 @@ namespace SharpServer
 							 rc.RestartService(1); // restart the service after 1 minute
 							 rc.OnCrashOnly();
 						 });
-					x.SetDescription("FTP Service - BJS");
-					x.SetDisplayName("FTPServiceBJS");
-					x.SetServiceName("FTPServiceBJS");
+					x.SetDescription("BJS FTP Service");
+					x.SetDisplayName("BJSFTPService");
+					x.SetServiceName("BJSFTPService");
 				});                                               
 				
 			}
@@ -50,6 +50,7 @@ namespace SharpServer
 
 	public class ServiceStarter : ServiceControl
 	{
+		protected static ILog _log = LogManager.GetLogger(typeof(ServiceStarter));
 		String _ftpconfigxml = "ftpconfig.xml";
 		FtpServer _ftpServer = null;
 
@@ -61,6 +62,7 @@ namespace SharpServer
 				ftpconfig = Ftp.FtpServer.Deserialize<FtpConfig>(_ftpconfigxml)
 				:
 				ftpconfig = new Ftp.FtpConfig(ftproot: "p:\\temp\\ftphome", iPAddressV4: "0.0.0.0", userStore: "userStore.xml");
+			_log.DebugFormat("ftpconfig={0}", ftpconfig.ToString());
 			FtpServer.Serialize<FtpConfig>(_ftpconfigxml, ftpconfig);
 			_ftpServer = new FtpServer(ftpconfig);
 			Boolean rc = _ftpServer.Start();
