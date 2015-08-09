@@ -685,44 +685,47 @@ namespace SharpServer.Ftp
         /// </summary>
         /// <param name="username"></param>
         /// <returns></returns>
-        private Response ChangeWorkingDirectory(string pathname)
-        {
-            if (pathname == "/")
-            {
-                _currentDirectory = _root;
-            }
-            else
-            {
-                string newDir;
+		  /// 
 
-                if (pathname.StartsWith("/", StringComparison.OrdinalIgnoreCase))
-                {
-                    pathname = pathname.Substring(1).Replace('/', '\\');
-                    newDir = Path.Combine(_root, pathname);
-                }
-                else
-                {
-                    pathname = pathname.Replace('/', '\\');
-                    newDir = Path.Combine(_currentDirectory, pathname);
-                }
+		  private Response ChangeWorkingDirectory(string pathname)
+		  {
 
-                if (Directory.Exists(newDir))
-                {
-                    _currentDirectory = new DirectoryInfo(newDir).FullName;
+			  if (String.IsNullOrEmpty(pathname))
+			  {
+				  return GetResponse(FtpResponses.DIRECTORY_NOT_FOUND);
+			  }
 
-                    if (!IsPathValid(_currentDirectory))
-                    {
-                        _currentDirectory = _root;
-                    }
-                }
-                else
-                {
-                    _currentDirectory = _root;
-                }
-            }
+			  if (pathname == "/")
+			  {
+				  _currentDirectory = _root;
+			  }
+			  else
+			  {
+				  string newDir;
 
-            return GetResponse(FtpResponses.OK);
-        }
+				  if (pathname.StartsWith("/", StringComparison.OrdinalIgnoreCase))
+				  {
+					  pathname = pathname.Substring(1).Replace('/', '\\');
+					  newDir = Path.Combine(_root, pathname);
+				  }
+				  else
+				  {
+					  pathname = pathname.Replace('/', '\\');
+					  newDir = Path.Combine(_currentDirectory, pathname);
+				  }
+
+				  if (Directory.Exists(newDir))
+				  {
+					  _currentDirectory = newDir;
+				  }
+				  else
+				  {
+					  return GetResponse(FtpResponses.DIRECTORY_NOT_FOUND);
+				  }
+			  }
+
+			  return GetResponse(FtpResponses.OK);
+		  }
 
         /// <summary>
         /// PORT Command - RFC 959 - Section 4.1.2

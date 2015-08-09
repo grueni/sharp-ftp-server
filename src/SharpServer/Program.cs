@@ -71,7 +71,6 @@ namespace SharpServer
 		public Boolean Stop(HostControl hostControl)
 		{
 			Boolean rc = _ftpServer.Stop();
-			_ftpServer.Dispose();
 			_ftpServer = null;
 			return rc;
 		}
