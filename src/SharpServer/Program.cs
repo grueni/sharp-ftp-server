@@ -41,9 +41,11 @@ namespace SharpServer
 			return;
 		}
 
+// nicht benutzt, als Erinnerungsstütze		
 		static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
 		{
 			_log.Fatal((Exception)e.ExceptionObject);
+			
 		}
 
 	}
@@ -54,7 +56,8 @@ namespace SharpServer
 		String _ftpconfigxml = "ftpconfig.xml";
 		FtpServer _ftpServer = null;
 
-		public ServiceStarter() { }
+		public ServiceStarter() {
+		}
 
 		public Boolean Start(HostControl hostControl) 
 		{
@@ -74,6 +77,7 @@ namespace SharpServer
 			_ftpServer = null;
 			return rc;
 		}
+
 	}
 
 }

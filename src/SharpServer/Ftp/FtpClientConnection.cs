@@ -782,7 +782,7 @@ namespace SharpServer.Ftp
 
             try
             {
-                _passiveListener.Start();
+					_passiveListener.Start(1);
             }
             catch
             {
@@ -813,7 +813,7 @@ namespace SharpServer.Ftp
 
             try
             {
-                _passiveListener.Start();
+                _passiveListener.Start(1);
             }
             catch
             {

@@ -100,9 +100,8 @@ namespace SharpServer
 
             try
             {
-                byte[] response = ControlStreamEncoding.GetBytes(string.Concat(content, "\r\n"));
-
-                stream.BeginWrite(response, 0, response.Length, WriteCallback, stream);
+					byte[] response = ControlStreamEncoding.GetBytes(string.Concat(content, "\r\n"));
+					stream.BeginWrite(response, 0, response.Length, WriteCallback, stream);
             }
             catch (Exception ex)
             {
@@ -144,16 +143,15 @@ namespace SharpServer
             {
                 if (disposing)
                 {
-                    if (ControlClient != null)
-                    {
-                        ControlClient.Close();
-                    }
-
                     if (ControlStream != null)
                     {
                         ControlStream.Close();
                     }
-                }
+						  if (ControlClient != null)
+						  {
+							  ControlClient.Close();
+						  }
+					 }
             }
 
             _disposed = true;
@@ -200,12 +198,15 @@ namespace SharpServer
                 Dispose();
                 return;
             }
-
             try
             {
-                stream.EndWrite(result);
+/*
+System.ObjectDisposedException: Auf das verworfene Objekt kann nicht zugegriffen werden.
+Objektname: "System.Net.Sockets.NetworkStream".
+*/
+					stream.EndWrite(result);
             }
-            catch (IOException ex)
+            catch (Exception ex)
             {
                 _log.Error(ex);
                 Dispose();
@@ -234,7 +235,7 @@ namespace SharpServer
             {
                 bytesRead = stream.EndRead(result);
             }
-            catch (IOException ex)
+            catch (Exception ex)
             {
                 _log.Error(ex);
             }

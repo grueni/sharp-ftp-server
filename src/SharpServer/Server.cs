@@ -184,10 +184,12 @@ namespace SharpServer
             _disposed = true;
         }
 
+// hier einbauen: FileShare.ReadWrite, keine Delete
+// StreamReader verwenden und aus diesem serializer füttern, falls serializer.ReadObject nicht streamreader verwendet
 		  public static T Deserialize<T>(string fileName)
 		  {
 			  T t;
-			  using (var reader = new FileStream(fileName, FileMode.Open))
+			  using (var reader = File.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.Delete | FileShare.Read | FileShare.Write))
 			  {
 				  var serializer = new DataContractSerializer(typeof(T));
 				  t = (T)serializer.ReadObject(reader);
@@ -202,7 +204,7 @@ namespace SharpServer
 				  Indent = true,
 				  IndentChars = "\t"
 			  };
-			  using (var filestream = new FileStream(fileName, FileMode.Create))
+			  using (var filestream = File.Open(fileName, FileMode.Create, FileAccess.Write, FileShare.Read))
 			  using (var writer = XmlWriter.Create(filestream, settings))
 			  {
 				  var serializer = new DataContractSerializer(typeof(T));
@@ -210,12 +212,6 @@ namespace SharpServer
 				  writer.Close();
 				  filestream.Close();
 			  }
-			  //using (var writer = new FileStream(fileName, FileMode.Create))
-			  //{
-			  //   var serializer = new DataContractSerializer(typeof(T));
-			  //   serializer.WriteObject(writer, t);
-			  //   writer.Close();
-			  //}
 		  }
 
 	 }
