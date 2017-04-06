@@ -3,12 +3,20 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Security.Cryptography.X509Certificates;
 
 namespace SharpServer
 {
     public abstract class ClientConnection : ClientConnectionBase, IDisposable
     {
         public event EventHandler<EventArgs> Disposed;
+
+		  private X509Certificate2 _ServerCertificate;
+		  internal X509Certificate2 ServerCertificate
+		  {
+			  get { return _ServerCertificate; }
+			  set { _ServerCertificate = value; }
+		  }
 
 		  private String _userStore;
 		  public String UserStore { 
@@ -22,18 +30,25 @@ namespace SharpServer
 
         private byte[] _buffer = new byte[128];
         private StringBuilder _commandBuffer = new StringBuilder();
-        private Encoding _controlStreamEncoding = Encoding.ASCII;
-        private string _expectedTerminator = "\r\n";
+		  private Encoding _controlStreamEncoding = new System.Text.ASCIIEncoding();      // don't ccreate BOM marker with 3 characters
+		  private Encoding _dataStreamEncoding = new System.Text.ASCIIEncoding();
+		  private string _expectedTerminator = "\r\n";
 
         #endregion
 
-        protected Encoding ControlStreamEncoding
-        {
-            get { return _controlStreamEncoding; }
-            set { _controlStreamEncoding = value; }
-        }
+		  protected Encoding ControlStreamEncoding
+		  {
+			  get { return _controlStreamEncoding; }
+			  set { _controlStreamEncoding = value; }
+		  }
 
-        /// <summary>
+		  protected Encoding DataStreamEncoding
+		  {
+			  get { return _dataStreamEncoding; }
+			  set { _dataStreamEncoding = value; }
+		  }
+
+		  /// <summary>
         /// Expected End of Message value. In FTP this is always &lt;CRLF&gt;. In SMTP, it is usually &lt;CRLF&gt;,
         /// except when sending the actual email message. Then it is: &lt;CRLF&gt;.&lt;CRLF&gt;
         /// </summary>
@@ -102,7 +117,7 @@ namespace SharpServer
             {
 					byte[] response = ControlStreamEncoding.GetBytes(string.Concat(content, "\r\n"));
 					stream.BeginWrite(response, 0, response.Length, WriteCallback, stream);
-            }
+				}
             catch (Exception ex)
             {
                 _log.Error(ex);
@@ -205,7 +220,7 @@ System.ObjectDisposedException: Auf das verworfene Objekt kann nicht zugegriffen
 Objektname: "System.Net.Sockets.NetworkStream".
 */
 					stream.EndWrite(result);
-            }
+				}
             catch (Exception ex)
             {
                 _log.Error(ex);

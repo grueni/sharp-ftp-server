@@ -70,7 +70,7 @@ namespace SharpServer.Localization {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die UniqueDirectory already exists ähnelt.
+        ///   Sucht eine lokalisierte Zeichenfolge, die Directory already exists ähnelt.
         /// </summary>
         internal static string DIRECTORY_EXISTS {
             get {
@@ -79,7 +79,7 @@ namespace SharpServer.Localization {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die UniqueDirectory not found ähnelt.
+        ///   Sucht eine lokalisierte Zeichenfolge, die Directory not found ähnelt.
         /// </summary>
         internal static string DIRECTORY_NOT_FOUND {
             get {
@@ -304,11 +304,29 @@ namespace SharpServer.Localization {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die UTF8 Encoding turned on ähnelt.
+        ///   Sucht eine lokalisierte Zeichenfolge, die UTF8 Encoding Control turned on ähnelt.
         /// </summary>
         internal static string UTF8_ENCODING_ON {
             get {
                 return ResourceManager.GetString("UTF8_ENCODING_ON", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Sucht eine lokalisierte Zeichenfolge, die UTF8 Encoding Data turned off ähnelt.
+        /// </summary>
+        internal static string UTF8_NLST_OFF {
+            get {
+                return ResourceManager.GetString("UTF8_NLST_OFF", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Sucht eine lokalisierte Zeichenfolge, die UTF8 Encoding Data turned on ähnelt.
+        /// </summary>
+        internal static string UTF8_NLST_ON {
+            get {
+                return ResourceManager.GetString("UTF8_NLST_ON", resourceCulture);
             }
         }
     }

@@ -198,4 +198,10 @@
   <data name="UTF8_ENCODING_ON" xml:space="preserve">
     <value>Encodage UTF8 allumé</value>
   </data>
+  <data name="UTF8_NLST_OFF" xml:space="preserve">
+    <value>UTF8 Encoding Data turned off</value>
+  </data>
+  <data name="UTF8_NLST_ON" xml:space="preserve">
+    <value>UTF8 Encoding Data turned on</value>
+  </data>
 </root>

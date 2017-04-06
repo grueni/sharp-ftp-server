@@ -128,7 +128,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Localization\FtpReplies.fr.resx" />
+    <EmbeddedResource Include="Localization\FtpReplies.fr.resx">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="Localization\FtpReplies.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>FtpReplies.Designer.cs</LastGenOutput>
@@ -158,6 +160,10 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\GnuSslStream\GnuSslStream.csproj">
+      <Project>{E8975487-6509-4663-BB61-14326E1AD464}</Project>
+      <Name>GnuSslStream</Name>
+    </ProjectReference>
     <ProjectReference Include="..\two-factor\src\TwoFactor\TwoFactor.csproj">
       <Project>{903279E1-4D47-4F18-A6F6-ED61EAAD8176}</Project>
       <Name>TwoFactor</Name>

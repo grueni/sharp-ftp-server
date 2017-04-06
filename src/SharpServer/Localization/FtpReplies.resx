@@ -199,6 +199,12 @@
     <value>Username ok, need password</value>
   </data>
   <data name="UTF8_ENCODING_ON" xml:space="preserve">
-    <value>UTF8 Encoding turned on</value>
+    <value>UTF8 Encoding Control turned on</value>
+  </data>
+  <data name="UTF8_NLST_OFF" xml:space="preserve">
+    <value>UTF8 Encoding Data turned off</value>
+  </data>
+  <data name="UTF8_NLST_ON" xml:space="preserve">
+    <value>UTF8 Encoding Data turned on</value>
   </data>
 </root>

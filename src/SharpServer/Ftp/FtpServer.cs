@@ -13,17 +13,18 @@ namespace SharpServer.Ftp
 		private DateTime _startTime;
 		private Timer _timer;
 
-		public FtpServer(FtpConfig ftpConfig, string logHeader = null) 
-			:base(ftpConfig.LocalEndPoints,ftpConfig.UserStore, logHeader)
+		public FtpServer(FtpConfig ftpConfig, String logHeader = null) 
+			:base(ftpConfig.LocalEndPoints,ftpConfig.UserStore,ftpConfig.CertificatePath,ftpConfig.CertificatePassword, logHeader)
 		{
 			_ftpConfig = ftpConfig;
-			foreach (var endPoint in ftpConfig.LocalEndPoints)
+			foreach (var endPoint in _ftpConfig.LocalEndPoints)
 			{
 				FtpPerformanceCounters.Initialize(endPoint.Port);
 			}
 		}
 
 		public FtpConfig ftpConfig { get { return _ftpConfig; } }
+
 
 		protected override void OnConnectAttempt()
 		{

@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Resources;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -91,7 +92,9 @@ namespace SharpServer.Ftp
             public static readonly Response ENABLING_TLS = new Response { Code = "234", ResourceManager = FtpReplies.ResourceManager, Text = "ENABLING_TLS" };
             public static readonly Response TRANSFER_ABORTED = new Response { Code = "426", ResourceManager = FtpReplies.ResourceManager, Text = "TRANSFER_ABORTED" };
             public static readonly Response TRANSFER_SUCCESSFUL = new Response { Code = "226", ResourceManager = FtpReplies.ResourceManager, Text = "TRANSFER_SUCCESSFUL" };
-            public static readonly Response UTF8_ENCODING_ON = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_ENCODING_ON" };
+				public static readonly Response UTF8_ENCODING_ON = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_ENCODING_ON" };
+				public static readonly Response UTF8_NLST_ON = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_NLST_ON" };
+				public static readonly Response UTF8_NLST_OFF = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_NLST_OFF" };
 
             public static readonly Response ENTERING_PASSIVE_MODE = new Response { Code = "227", ResourceManager = FtpReplies.ResourceManager, Text = "ENTERING_PASSIVE_MODE" };
             public static readonly Response ENTERING_EXTENDED_PASSIVE_MODE = new Response { Code = "229", ResourceManager = FtpReplies.ResourceManager, Text = "ENTERING_EXTENDED_PASSIVE_MODE" };
@@ -100,11 +103,12 @@ namespace SharpServer.Ftp
             public static readonly Response CURRENT_DIRECTORY = new Response { Code = "257", ResourceManager = FtpReplies.ResourceManager, Text = "CURRENT_DIRECTORY" };
 
             public static readonly Response FEATURES = new Response { Code = "211-", Text = string.Format("{0}:\r\n MDTM\r\n SIZE\r\n UTF8\r\n211 End", FtpReplies.EXTENSIONS_SUPPORTED) };
+				public static readonly Response RESTART_FROM = new Response { Code = "350", ResourceManager = FtpReplies.ResourceManager, Text = "RESTART_FROM" };
         }
 
         private class DataConnectionOperation
         {
-            public Func<NetworkStream, string, Response> Operation { get; set; }
+            public Func<Stream, string, Response> Operation { get; set; }
             public string Arguments { get; set; }
         }
 
@@ -154,19 +158,24 @@ namespace SharpServer.Ftp
         private string _root;
         private string _currentDirectory;
         private IPEndPoint _dataEndpoint;
-        private X509Certificate _cert = null;
-        private SslStream _sslStream;
+		  private GnuSslStream _sslStream;
+
+		  private int _protectBufferSize = 0;
+		  private bool _protected = false;
+		  private bool _sslEnabled = false; 
+		  private long _transPosition = 0; 
+		  private readonly String withSsl = " with TLS/SSL";
 
         private bool _disposed = false;
 
         private bool _connected = false;
 
         private FtpUser _currentUser;
-        private List<string> _validCommands;
+        private List<String> _validCommands;
 
         private static readonly Regex _invalidPathChars = new Regex(string.Join("|", Path.GetInvalidPathChars().Select(c => string.Format(CultureInfo.InvariantCulture, "\\u{0:X4}", (int)c))), RegexOptions.Compiled);
 
-        private string _renameFrom;
+        private String _renameFrom;
 
         private Encoding _currentEncoding = Encoding.ASCII;
         private CultureInfo _currentCulture = CultureInfo.CurrentCulture;
@@ -229,7 +238,7 @@ namespace SharpServer.Ftp
 
         protected override Response HandleCommand(Command cmd)
         {
-//			  _log.DebugFormat("cmd.Code={0}", cmd.Code);
+//		      _log.DebugFormat("cmd.Code={0}", cmd.Code);
             Response response = null;
 
             var logEntry = new FtpLogEntry
@@ -249,6 +258,11 @@ namespace SharpServer.Ftp
             {
                 _renameFrom = null;
             }
+
+				if (cmd.Code != "RETR" && cmd.Code != "STOR")
+				{
+					_transPosition = 0;
+				}
 
 				try
 				{
@@ -278,6 +292,7 @@ namespace SharpServer.Ftp
 									_dataClient = null;
 									_currentCulture = CultureInfo.CurrentCulture;
 									_currentEncoding = Encoding.ASCII;
+									DataStreamEncoding = Encoding.UTF8;
 									ControlStreamEncoding = Encoding.ASCII;
 									response = GetResponse(FtpResponses.SERVICE_READY);
 									break;
@@ -353,11 +368,13 @@ namespace SharpServer.Ftp
 							  case "NLST":
 									response = NameList(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
 									break;
+							 case "REST":
+									response = Restart(cmd.RawArguments);
+									break;
 							  case "SITE":
 							  case "STAT":
 							  case "HELP":
 							  case "SMNT":
-							  case "REST":
 							  case "ABOR":
 									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
 									break;
@@ -366,12 +383,19 @@ namespace SharpServer.Ftp
 							  case "AUTH":
 									response = Auth(cmd.Arguments.FirstOrDefault());
 									break;
+							  case "PBSZ":    
+									response = ProtectBufferSize(cmd.RawArguments);
+									break;
+							  case "PROT":    
+									response = ProtectionLevel(cmd.Arguments.FirstOrDefault());
+									break;
 
 							  // Extensions defined by rfc 2389
 							  case "FEAT":
 									response = GetResponse(FtpResponses.FEATURES);
 									break;
 							  case "OPTS":
+//									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
 									response = Options(cmd.Arguments);
 									break;
 
@@ -444,11 +468,24 @@ namespace SharpServer.Ftp
         {
             if (cmd.Code == "AUTH")
             {
-                _cert = new X509Certificate("server2.cer");
-
-                _sslStream = new SslStream(ControlStream);
-
-                _sslStream.AuthenticateAsServer(_cert);
+					_sslEnabled = false;
+					try
+					{
+						_sslStream = new GnuSslStream(ControlStream);
+						_sslStream.Id = "controlstream";
+						_sslStream.ReadTimeout = 5000;
+						_sslStream.WriteTimeout = 5000;
+						_sslStream.AuthenticateAsServer(ServerCertificate, false, SslProtocols.Tls, true);
+						_sslEnabled = true;
+					}
+					catch (AuthenticationException exception)
+					{
+						_log.ErrorFormat("{0}", exception.Message);
+					}
+					catch (ArgumentNullException exception)
+					{
+						_log.ErrorFormat("{0}", exception.Message);
+					}
             }
 
             FtpPerformanceCounters.IncrementCommandsExecuted();
@@ -473,18 +510,17 @@ namespace SharpServer.Ftp
 
                     if (disposing)
                     {
-                        if (_dataClient != null)
+							  if (_dataClient != null)
                         {
                             _dataClient.Close();
                             _dataClient = null;
                         }
-
-                        if (_sslStream != null)
-                        {
-                            _sslStream.Dispose();
-                            _sslStream = null;
-                        }
-                    }
+							  if (_sslStream != null)
+							  {
+								  _sslStream.Dispose();
+								  _sslStream = null;
+							  }
+						  }
                 }
             }
             finally
@@ -916,12 +952,28 @@ namespace SharpServer.Ftp
 
                     SetupDataConnectionOperation(state);
 
-                    return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "RETR"));
+						  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "RETR" + (_protected ? withSsl : "")));
                 }
             }
 
             return GetResponse(FtpResponses.FILE_NOT_FOUND);
         }
+
+		  /// <summary>
+		  /// REST Command - RFC 959 - Section 4.1.3
+		  /// </summary>
+		  /// <param name="position">position</param>
+		  /// <returns></returns>
+		  private Response Restart(String position)
+		  {
+			  long pos = 0;
+			  if (!long.TryParse(position, out pos))
+			  {
+				  return GetResponse(FtpResponses.PARAMETER_NOT_RECOGNIZED.SetData(position));
+			  }
+			  _transPosition = pos;
+			  return GetResponse(FtpResponses.RESTART_FROM.SetData(pos));
+		  }
 
         /// <summary>
         /// STOR Command - RFC 959 - Section 4.1.3
@@ -940,7 +992,7 @@ namespace SharpServer.Ftp
 
 					SetupDataConnectionOperation(state);
 
-					return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR"));
+					return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR" + (_protected ? withSsl : "")));
 				}
 				else
 				{
@@ -965,7 +1017,7 @@ namespace SharpServer.Ftp
 
 				  SetupDataConnectionOperation(state);
 
-				  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOU"));
+				  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOU" + (_protected ? withSsl : "")));
 			  }
 			  else
 			  {
@@ -989,7 +1041,7 @@ namespace SharpServer.Ftp
 
                 SetupDataConnectionOperation(state);
 
-                return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "APPE"));
+					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "APPE" + (_protected ? withSsl : "")));
             }
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
@@ -1137,7 +1189,7 @@ namespace SharpServer.Ftp
 
                 SetupDataConnectionOperation(state);
 
-                return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "NLST"));
+					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "NLST" + (_protected ? withSsl : "")));
             }
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
@@ -1159,7 +1211,7 @@ namespace SharpServer.Ftp
 
                 SetupDataConnectionOperation(state);
 
-                return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "LIST"));
+					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "LIST" + (_protected ? withSsl : "")));
             }
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
@@ -1182,6 +1234,52 @@ namespace SharpServer.Ftp
             }
         }
 
+		  /// <summary>
+		  /// PBSZ Command - RFC 2228
+		  /// </summary>
+		  /// <param name="bufferSize"></param>
+		  /// <returns></returns>
+		  private Response ProtectBufferSize(string bufferSize)
+		  {
+			  if (!int.TryParse(bufferSize, out _protectBufferSize))
+			  {
+				  return GetResponse(FtpResponses.PARAMETER_NOT_RECOGNIZED);
+			  }
+			  if (_protectBufferSize != 0)
+			  {
+				  return GetResponse(FtpResponses.NOT_IMPLEMENTED_FOR_PARAMETER);
+			  }
+			  else
+			  {
+				  return new Response() { Code = "200", Text = string.Format("PBSZ={0}", _protectBufferSize) };
+			  }
+		  }
+
+		  /// <summary>
+		  /// PROT Command - RFC 2228
+		  /// </summary>
+		  /// <param name="level">C：无保护 P：完全保护</param>
+		  /// <returns></returns>
+		  private Response ProtectionLevel(string level)
+		  {
+			  level = level.Trim().ToUpper();
+			  switch (level)
+			  {
+				  case "C":
+					  _protected = false;
+					  break;
+				  case "P":
+					  _protected = true;
+					  break;
+				  case "S":
+				  case "E":
+				  default:
+					  return GetResponse(FtpResponses.NOT_IMPLEMENTED_FOR_PARAMETER);
+					  break;
+			  }
+			  return new Response() { Code = "200", Text = string.Format("PROT {0} Accepted.", level) };
+		  }
+
         /// <summary>
         /// OPTS Command - RFC 2389 - Section 4
         /// </summary>
@@ -1189,15 +1287,23 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response Options(List<string> arguments)
         {
-            if (arguments.FirstOrDefault() == "UTF8" && arguments.Skip(1).FirstOrDefault() == "ON")
-            {
-                _currentEncoding = Encoding.UTF8;
-                ControlStreamEncoding = Encoding.UTF8;
-
-                return GetResponse(FtpResponses.UTF8_ENCODING_ON);
-            }
-
-            return GetResponse(FtpResponses.OK);
+			  if (arguments.FirstOrDefault() == "UTF8" && arguments.Skip(1).FirstOrDefault() == "ON")
+			  {
+//				  _currentEncoding = new System.Text.UTF8Encoding();
+				  ControlStreamEncoding = new System.Text.UTF8Encoding();
+				  return GetResponse(FtpResponses.UTF8_ENCODING_ON);
+			  }
+			  else if (arguments.FirstOrDefault() == "UTF8" && arguments.Skip(1).FirstOrDefault() == "NLST")
+			  {
+				  DataStreamEncoding = new System.Text.UTF8Encoding();
+				  return GetResponse(FtpResponses.UTF8_NLST_ON);
+			  }
+			  else if (arguments.FirstOrDefault() == "UTF8" && arguments.Count==1)
+			  {
+				  DataStreamEncoding = new System.Text.ASCIIEncoding();
+				  return GetResponse(FtpResponses.UTF8_NLST_OFF);
+			  }
+			  return GetResponse(FtpResponses.OK);
         }
 
         /// <summary>
@@ -1314,16 +1420,44 @@ namespace SharpServer.Ftp
 
             HandleAsyncResult(result);
 
-            DataConnectionOperation op = result.AsyncState as DataConnectionOperation;
+            var op = result.AsyncState as DataConnectionOperation;
 
             Response response;
 
             try
             {
-                using (NetworkStream dataStream = _dataClient.GetStream())
-                {
-                    response = op.Operation(dataStream, op.Arguments);
-                }
+					if (_dataClient == null)
+					{
+						throw new SocketException();
+					}
+					if (_protected)
+					{
+						using (GnuSslStream dataStream = new GnuSslStream(_dataClient.GetStream(), false))
+						{
+							try
+							{
+								dataStream.Id = "Datastream";
+								dataStream.ReadTimeout = 5000;
+								dataStream.WriteTimeout = 5000;
+								dataStream.AuthenticateAsServer(ServerCertificate, false, SslProtocols.Tls, true);
+								response = op.Operation(dataStream, op.Arguments);
+							}
+							catch (Exception)
+							{
+								response = GetResponse(FtpResponses.UNABLE_TO_OPEN_DATA_CONNECTION);
+								//throw;
+							}
+							dataStream.Close();
+							//response = op.Operation(dataStream, op.Arguments);
+						}
+					}
+					else
+					{
+						using (NetworkStream dataStream = _dataClient.GetStream())
+						{
+							response = op.Operation(dataStream, op.Arguments);
+						}
+					}
             }
             catch (Exception ex)
             {
@@ -1345,7 +1479,7 @@ namespace SharpServer.Ftp
             Write(response.ToString());
         }
 
-        private Response RetrieveOperation(NetworkStream dataStream, string pathname)
+        private Response RetrieveOperation(Stream dataStream, string pathname)
         {
             using (var fs = new FileStream(pathname, FileMode.Open, FileAccess.Read))
             {
@@ -1357,7 +1491,7 @@ namespace SharpServer.Ftp
             return GetResponse(FtpResponses.TRANSFER_SUCCESSFUL);
         }
 
-        private Response StoreOperation(NetworkStream dataStream, string pathname)
+        private Response StoreOperation(Stream dataStream, string pathname)
         {
             long bytes = 0;
 
@@ -1383,7 +1517,7 @@ namespace SharpServer.Ftp
             return GetResponse(FtpResponses.TRANSFER_SUCCESSFUL);
         }
 
-        private Response AppendOperation(NetworkStream dataStream, string pathname)
+        private Response AppendOperation(Stream dataStream, string pathname)
         {
             long bytes = 0;
 
@@ -1409,11 +1543,11 @@ namespace SharpServer.Ftp
             return GetResponse(FtpResponses.TRANSFER_SUCCESSFUL);
         }
 
-        private Response ListOperation(NetworkStream dataStream, string pathname)
+        private Response ListOperation(Stream dataStream, string pathname)
         {
             DateTime now = DateTime.Now;
 
-            StreamWriter dataWriter = new StreamWriter(dataStream, _currentEncoding);
+            StreamWriter dataWriter = new StreamWriter(dataStream, DataStreamEncoding);
 
             IEnumerable<string> directories = Directory.EnumerateDirectories(pathname);
 
@@ -1480,9 +1614,9 @@ namespace SharpServer.Ftp
             return GetResponse(FtpResponses.TRANSFER_SUCCESSFUL);
         }
 
-        private Response NameListOperation(NetworkStream dataStream, String pathname)
+        private Response NameListOperation(Stream dataStream, String pathname)
         {
-            var dataWriter = new StreamWriter(dataStream, _currentEncoding);
+            var dataWriter = new StreamWriter(dataStream, DataStreamEncoding);
 
 				try
 				{

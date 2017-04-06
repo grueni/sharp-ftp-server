@@ -6,6 +6,7 @@ using System.Runtime.Serialization;
 using log4net;
 using System.Xml;
 using System.IO;
+using System.Security.Cryptography.X509Certificates;
 
 namespace SharpServer
 {
@@ -25,6 +26,7 @@ namespace SharpServer
         private List<IPEndPoint> _localEndPoints;
         private string _logHeader;
 		  private String _userStore;
+		  internal X509Certificate2 _ServerCertificate = null;
 
         public Server(int port, string logHeader = null)
             : this(IPAddress.Any, port, logHeader)
@@ -36,12 +38,18 @@ namespace SharpServer
         {
         }
 
-		  public Server(IPEndPoint[] localEndPoints, String userStore, String logHeader = null)
+		  public Server(IPEndPoint[] localEndPoints, String userStore, String certificatePath = null, String certificatePassword=null,String logHeader = null)
 		  {
 			  _userStore = userStore;
 			  _localEndPoints = new List<IPEndPoint>(localEndPoints);
 			  _logHeader = logHeader;
-			  _log.DebugFormat("_userStore={0}", _userStore);
+			  _log.DebugFormat("_userStore={0} certificatePath={1}", _userStore, certificatePath);
+			  if (!String.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
+			  {
+				  _ServerCertificate = String.IsNullOrEmpty(certificatePassword)
+					  ? new X509Certificate2(certificatePath)
+					  : new X509Certificate2(certificatePath, certificatePassword);
+			  }
 		  }
 
 		  public Server(IPEndPoint[] localEndPoints, string logHeader = null)
@@ -116,19 +124,22 @@ namespace SharpServer
         {
         }
 
+		  // prüfen, ob das wirklich so funktioniert: nonblocking BeginAcceptTcpClient, gefolgt von blocking EndAcceptTcpClient
+		 // trennen in 2 Methoden??
         private void HandleAcceptTcpClient(IAsyncResult result)
         {
             OnConnectAttempt();
 
-            TcpListener listener = result.AsyncState as TcpListener;
+            var listener = result.AsyncState as TcpListener;
 
-            if (_listening)
+            if (listener.Server.IsBound)
             {
-                listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
+					var client = listener.EndAcceptTcpClient(result);
 
-                TcpClient client = listener.EndAcceptTcpClient(result);
+					listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
+
 					 _log.DebugFormat("_userStore={0}", _userStore);
-					 var connection = new T() { UserStore = _userStore};
+					 var connection = new T() { UserStore = _userStore, ServerCertificate = _ServerCertificate};
 
                 connection.Disposed += new EventHandler<EventArgs>(AsyncClientConnection_Disposed);
 
@@ -160,6 +171,7 @@ namespace SharpServer
 
         protected virtual void Dispose(bool disposing)
         {
+			  _log.DebugFormat("drin");
             _disposing = true;
 
             if (!_disposed)
@@ -167,6 +179,7 @@ namespace SharpServer
                 if (disposing)
                 {
                     Stop();
+						  _log.DebugFormat("nach stop");
 
                     lock (_listLock)
                     {
@@ -175,6 +188,7 @@ namespace SharpServer
                             if (connection != null)
                                 connection.Dispose();
                         }
+								_log.DebugFormat("nach connection");
 
                         _state = null;
                     }

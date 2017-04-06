@@ -12,8 +12,9 @@ namespace SharpServer
 	{
 		protected static ILog _log = LogManager.GetLogger(typeof(Program));
 
-		static void Main(string[] args)
+		static void Main(String[] args)
 		{
+//			String log4netconfig = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SharpServer.log4net");
 
 			try
 			{
@@ -28,9 +29,10 @@ namespace SharpServer
 							 rc.RestartService(1); // restart the service after 1 minute
 							 rc.OnCrashOnly();
 						 });
-					x.SetDescription("BJS FTP Service");
-					x.SetDisplayName("BJSFTPService");
-					x.SetServiceName("BJSFTPService");
+//					x.SetDescription("BJS FTP Service");
+//					x.SetDisplayName("BJSFTPService");
+//					x.SetServiceName("BJSFTPService");
+//					x.UseLog4Net(log4netconfig);
 				});                                               
 				
 			}
@@ -53,7 +55,7 @@ namespace SharpServer
 	public class ServiceStarter : ServiceControl
 	{
 		protected static ILog _log = LogManager.GetLogger(typeof(ServiceStarter));
-		String _ftpconfigxml = "ftpconfig.xml";
+		String _ftpconfigxml = @"config\ftpconfig.xml";
 		FtpServer _ftpServer = null;
 
 		public ServiceStarter() {
@@ -61,10 +63,10 @@ namespace SharpServer
 
 		public Boolean Start(HostControl hostControl) 
 		{
-			FtpConfig ftpconfig = (File.Exists(_ftpconfigxml)) ?
-				ftpconfig = Ftp.FtpServer.Deserialize<FtpConfig>(_ftpconfigxml)
+			var ftpconfig = (File.Exists(_ftpconfigxml)) ?
+				Ftp.FtpServer.Deserialize<FtpConfig>(_ftpconfigxml)
 				:
-				ftpconfig = new Ftp.FtpConfig(ftproot: "p:\\temp\\ftphome", iPAddressV4: "0.0.0.0", userStore: "userStore.xml");
+				new Ftp.FtpConfig(ftproot: "p:\\temp\\ftphome", iPAddressV4: "0.0.0.0", userStore: "userStore.xml");
 			_log.DebugFormat("ftpconfig={0}", ftpconfig.ToString());
 			FtpServer.Serialize<FtpConfig>(_ftpconfigxml, ftpconfig);
 			_ftpServer = new FtpServer(ftpconfig);
