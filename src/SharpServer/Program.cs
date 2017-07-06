@@ -25,10 +25,10 @@ namespace SharpServer
 					x.StartAutomaticallyDelayed();
 					x.UseLog4Net();
 					x.EnableServiceRecovery(rc =>
-						 {
-							 rc.RestartService(1); // restart the service after 1 minute
-							 rc.OnCrashOnly();
-						 });
+					{
+						rc.RestartService(1); // restart the service after 1 minute
+						rc.OnCrashOnly();
+					});
 //					x.SetDescription("BJS FTP Service");
 //					x.SetDisplayName("BJSFTPService");
 //					x.SetServiceName("BJSFTPService");

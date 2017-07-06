@@ -14,10 +14,12 @@ namespace SharpServer.Ftp
 		private Timer _timer;
 
 		public FtpServer(FtpConfig ftpConfig, String logHeader = null) 
-			:base(ftpConfig.LocalEndPoints,ftpConfig.UserStore,ftpConfig.CertificatePath,ftpConfig.CertificatePassword, logHeader)
+			:base(ftpConfig.LocalEndPoints,ftpConfig.UserStore,ftpConfig.IPPortV4RangeMin,ftpConfig.IPPortV4RangeMax,
+                 ftpConfig.CertificatePath,ftpConfig.CertificatePassword, logHeader)
 		{
 			_ftpConfig = ftpConfig;
-			foreach (var endPoint in _ftpConfig.LocalEndPoints)
+            if (_log.IsDebugEnabled) _log.DebugFormat("_ftpConfig={0}", _ftpConfig);
+            foreach (var endPoint in _ftpConfig.LocalEndPoints)
 			{
 				FtpPerformanceCounters.Initialize(endPoint.Port);
 			}
@@ -50,7 +52,7 @@ namespace SharpServer.Ftp
 		{
 			FtpClientConnection.PassiveListeners.ReleaseAll();
 			if (_timer != null)
-					_timer.Dispose();
+				_timer.Dispose();
 			base.Dispose(disposing);
 		}
 

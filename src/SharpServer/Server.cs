@@ -25,8 +25,10 @@ namespace SharpServer
         private bool _listening = false;
         private List<IPEndPoint> _localEndPoints;
         private string _logHeader;
-		  private String _userStore;
-		  internal X509Certificate2 _ServerCertificate = null;
+		private String _userStore;
+		internal X509Certificate2 _ServerCertificate = null;
+        private int _minPort;
+        private int _maxPort;
 
         public Server(int port, string logHeader = null)
             : this(IPAddress.Any, port, logHeader)
@@ -38,18 +40,20 @@ namespace SharpServer
         {
         }
 
-		  public Server(IPEndPoint[] localEndPoints, String userStore, String certificatePath = null, String certificatePassword=null,String logHeader = null)
+		  public Server(IPEndPoint[] localEndPoints, String userStore, int minPort=1024, int maxPort=65535, String certificatePath = null, String certificatePassword=null,String logHeader = null)
 		  {
-			  _userStore = userStore;
-			  _localEndPoints = new List<IPEndPoint>(localEndPoints);
-			  _logHeader = logHeader;
-			  _log.DebugFormat("_userStore={0} certificatePath={1}", _userStore, certificatePath);
-			  if (!String.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
-			  {
-				  _ServerCertificate = String.IsNullOrEmpty(certificatePassword)
-					  ? new X509Certificate2(certificatePath)
-					  : new X509Certificate2(certificatePath, certificatePassword);
-			  }
+            _userStore = userStore;
+            _localEndPoints = new List<IPEndPoint>(localEndPoints);
+            _logHeader = logHeader;
+            _minPort = minPort;
+            _maxPort = maxPort;
+            _log.DebugFormat("_userStore={0} certificatePath={1} _minPort={2} _maxPort={3}", _userStore, certificatePath,_minPort,_maxPort);
+            if (!String.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
+            {
+	            _ServerCertificate = String.IsNullOrEmpty(certificatePassword)
+		            ? new X509Certificate2(certificatePath)
+		            : new X509Certificate2(certificatePath, certificatePassword);
+            }
 		  }
 
 		  public Server(IPEndPoint[] localEndPoints, string logHeader = null)
@@ -64,35 +68,34 @@ namespace SharpServer
             if (_disposed)
                 throw new ObjectDisposedException("AsyncServer");
 
-				_log.Info("# Starting Server");
-				_state = new List<T>();
+			_log.Info("# Starting Server");
+			_state = new List<T>();
             _listeners = new List<TcpListener>();
 
             foreach (var localEndPoint in _localEndPoints)
             {
-					String text = String.Format("This local end point is currently in use AddressFamily={0} Address={1} Port={2}",
-							  localEndPoint.AddressFamily, localEndPoint.Address, localEndPoint.Port);
-					TcpListener listener;
+				String text = String.Format("This local end point is currently in use AddressFamily={0} Address={1} Port={2}",
+							localEndPoint.AddressFamily, localEndPoint.Address, localEndPoint.Port);
+				TcpListener listener;
                 try
                 {
-						 listener = new TcpListener(localEndPoint);
-						 listener.Start();
-						 listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
-						 _listeners.Add(listener);
-					 }
+					listener = new TcpListener(localEndPoint);
+					listener.Start();
+					listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
+					_listeners.Add(listener);
+				}
                 catch (SocketException ex)
                 {
-						  _log.ErrorFormat(text);
-						  Dispose();
-						  rc = false;
-					 }
-
-            }
-				if (rc) {
-					_listening = true;
-					OnStart();
+					_log.ErrorFormat(text);
+					Dispose();
+					rc = false;
 				}
-				return rc;
+            }
+			if (rc) {
+				_listening = true;
+				OnStart();
+			}
+			return rc;
         }
 
 		  public Boolean Stop()
@@ -134,12 +137,12 @@ namespace SharpServer
 
             if (listener.Server.IsBound)
             {
-					var client = listener.EndAcceptTcpClient(result);
+				var client = listener.EndAcceptTcpClient(result);
 
-					listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
+				listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
 
-					 _log.DebugFormat("_userStore={0}", _userStore);
-					 var connection = new T() { UserStore = _userStore, ServerCertificate = _ServerCertificate};
+				_log.DebugFormat("_userStore={0}", _userStore);
+				var connection = new T() { UserStore = _userStore, ServerCertificate = _ServerCertificate, minPort = _minPort, maxPort = _maxPort };
 
                 connection.Disposed += new EventHandler<EventArgs>(AsyncClientConnection_Disposed);
 

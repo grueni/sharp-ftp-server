@@ -13,7 +13,8 @@ namespace SharpServer.Ftp
 
 		public FtpConfig(String ftproot = null, String userStore = null, String iPAddressV4 = null, 
 			int iPPortV4 = 21, String iPAddressV6 = null, int iPPortV6 = 21,
-			String certificatePath=null, String certificatePassword=null)
+			String certificatePath=null, String certificatePassword=null,
+            int iPPortrangeMin=1024,int iPPortrangeMax=65535)
 		{
 			Ftproot = ftproot;
 			UserStore = userStore;
@@ -23,6 +24,8 @@ namespace SharpServer.Ftp
 			IPPortV6 = iPPortV6;
 			CertificatePath = certificatePath;
 			CertificatePassword = certificatePassword;
+            IPPortV4RangeMin = iPPortrangeMin;
+            IPPortV4RangeMax = iPPortrangeMax;
 		}
 
 		[DataMember]
@@ -43,10 +46,16 @@ namespace SharpServer.Ftp
 		[DataMember]
 		public int IPPortV6 { get; set; }
 
-		/// <summary>
-		/// SSL certificate
-		/// </summary>
-		[DataMember]
+        [DataMember(Name = "IPPortV4RangeMin")]
+        public int IPPortV4RangeMin { get; set; }
+
+        [DataMember(Name = "IPPortV4RangeMax")]
+        public int IPPortV4RangeMax { get; set; }
+
+        /// <summary>
+        /// SSL certificate
+        /// </summary>
+        [DataMember]
 		public String CertificatePath { get; set; }
 
 		/// <summary>
@@ -84,7 +93,8 @@ namespace SharpServer.Ftp
 
 		public override String ToString()
 		{
-			return String.Format("Ftproot={0} UserStore={1} IPAddressV4={2} IPPortV4={3} IPAddressV6={4} IPPortV6={5} CertificatePath={6}", Ftproot, UserStore, IPAddressV4, IPPortV4, IPAddressV6, IPPortV6, CertificatePath);
+			return String.Format("Ftproot={0} UserStore={1} IPAddressV4={2} IPPortV4={3} IPAddressV6={4} IPPortV6={5} CertificatePath={6} IPPortV4RangeMin={7} IPPortV4RangeMax={8}", Ftproot, UserStore, IPAddressV4, IPPortV4, IPAddressV6, IPPortV6, CertificatePath,
+                IPPortV4RangeMin,IPPortV4RangeMax);
 		}
 
 

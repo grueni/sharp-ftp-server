@@ -14,34 +14,97 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using SharpServer.Localization;
 using TwoPS.Processes;
+using log4net;
 
 namespace SharpServer.Ftp
 {
     public class FtpClientConnection : ClientConnection
     {
+        
         /// <summary>
         /// This class allows us to maintain a list of TcpListeners for reuse, so we don't run out of ports under heavy load.
         /// </summary>
         public static class PassiveListeners
         {
+            private static ILog _log = LogManager.GetLogger(typeof(PassiveListeners));
             private static readonly object _listLock = new object();
             private static Dictionary<AutoResetEvent, TcpListener> _listeners = new Dictionary<AutoResetEvent, TcpListener>();
+            private static int lastPort = 65535;
+            /*
+                            {
+                                for (int port = minPort; port <= maxPort; port++)
+                                {
+                                    listener = _listeners.FirstOrDefault(p => p.Key.WaitOne(TimeSpan.FromMilliseconds(10)) &&
+                                    ((IPEndPoint)p.Value.LocalEndpoint).Address.Equals(ip) &&
+                                    ((IPEndPoint)p.Value.LocalEndpoint).Port.Equals(port)
+                                    ).Value;
 
-            public static TcpListener GetListener(IPAddress ip)
+                                    if (listener == null)
+                                    {
+                                        var listenerLock = new AutoResetEvent(false);
+                                        try
+                                        {
+                                            if (_log.IsDebugEnabled)_log.DebugFormat("Port used ip={0} port={1}", ip, port);
+                                            listener = new TcpListener(ip, port);
+                                            listener.Start();
+                                            _listeners.Add(listenerLock, listener);
+                                            lastPort = port;
+                                            break;
+                                        }
+                                        catch (SocketException ex)
+                                        {
+                                            var dummy = ex;
+                                            _log.ErrorFormat("Port already in use ip={0} port={1}", ip, port);
+                                        }
+                                        finally
+                                        {
+                                            if (listener != null)
+                                                listener.Stop();
+                                        }
+                                    }
+                                }
+                            }
+            */
+            public static TcpListener GetListener(IPAddress ip,int minPort, int maxPort)
             {
+                if (_log.IsDebugEnabled) _log.DebugFormat("ip={0} minPort={1} maxPort={2}", ip, minPort,maxPort);
                 TcpListener listener = null;
 
                 lock (_listLock)
                 {
-                    listener = _listeners.FirstOrDefault(p => p.Key.WaitOne(TimeSpan.FromMilliseconds(10)) && ((IPEndPoint)p.Value.LocalEndpoint).Address.Equals(ip)).Value;
-
-                    if (listener == null)
+                    for (int port = minPort; port <= maxPort; port++)
                     {
-                        AutoResetEvent listenerLock = new AutoResetEvent(false);
+                        lastPort++;
+                        if (lastPort > maxPort) lastPort = minPort;
+                        listener = _listeners.FirstOrDefault(p => p.Key.WaitOne(TimeSpan.FromMilliseconds(10)) &&
+                        ((IPEndPoint)p.Value.LocalEndpoint).Address.Equals(ip) &&
+                        ((IPEndPoint)p.Value.LocalEndpoint).Port.Equals(lastPort)
+                        ).Value;
 
-                        listener = new TcpListener(ip, 0);
-
-                        _listeners.Add(listenerLock, listener);
+                        if (listener == null)
+                        {
+                            var listenerLock = new AutoResetEvent(false);
+                            Boolean isStarted = false;
+                            try
+                            {
+                                if (_log.IsDebugEnabled)_log.DebugFormat("Port used ip={0} port={1}", ip, lastPort);
+                                listener = new TcpListener(ip, lastPort);
+                                listener.Start();
+                                isStarted = true;
+                                _listeners.Add(listenerLock, listener);
+                                break;
+                            }
+                            catch (SocketException ex)
+                            {
+                                var dummy = ex;
+                                _log.ErrorFormat("Port already in use ip={0} port={1}", ip, lastPort);
+                            }
+                            finally
+                            {
+                                if (listener != null && isStarted)
+                                    listener.Stop();
+                            }
+                        }
                     }
                 }
 
@@ -50,8 +113,14 @@ namespace SharpServer.Ftp
 
             public static void FreeListener(TcpListener listener)
             {
-                AutoResetEvent sync = _listeners.SingleOrDefault(p => p.Value == listener).Key;
-
+                var l = _listeners.SingleOrDefault(p => p.Value == listener).Value;
+                var sync = _listeners.SingleOrDefault(p => p.Value == listener).Key;
+                lock (_listLock)
+                {
+                    l.Stop();
+                    l = null;
+                    _listeners.Remove(sync);
+                }
                 sync.Set();
             }
 
@@ -158,13 +227,13 @@ namespace SharpServer.Ftp
         private string _root;
         private string _currentDirectory;
         private IPEndPoint _dataEndpoint;
-		  private GnuSslStream _sslStream;
+		private GnuSslStream _sslStream;
 
-		  private int _protectBufferSize = 0;
-		  private bool _protected = false;
-		  private bool _sslEnabled = false; 
-		  private long _transPosition = 0; 
-		  private readonly String withSsl = " with TLS/SSL";
+		private int _protectBufferSize = 0;
+		private bool _sslEnabled = false;
+		private bool _protected = false;
+		private long _transPosition = 0; 
+		private readonly String withSsl = " with TLS/SSL";
 
         private bool _disposed = false;
 
@@ -238,7 +307,7 @@ namespace SharpServer.Ftp
 
         protected override Response HandleCommand(Command cmd)
         {
-//		      _log.DebugFormat("cmd.Code={0}", cmd.Code);
+	      _log.DebugFormat("cmd.Code={0} cmd.Arguments={1}", cmd.Code,String.Join(" ",cmd.Arguments));
             Response response = null;
 
             var logEntry = new FtpLogEntry
@@ -259,184 +328,184 @@ namespace SharpServer.Ftp
                 _renameFrom = null;
             }
 
-				if (cmd.Code != "RETR" && cmd.Code != "STOR")
+			if (cmd.Code != "RETR" && cmd.Code != "STOR")
+			{
+				_transPosition = 0;
+			}
+
+			try
+			{
+				if (response == null)
 				{
-					_transPosition = 0;
-				}
+						switch (cmd.Code)
+						{
+							case "USER":
+								response = User(cmd.Arguments.FirstOrDefault());
+								break;
+							case "PASS":
+								response = Password(cmd.Arguments.FirstOrDefault());
+								logEntry.CSUriStem = "******";
+								break;
+							case "CWD":
+								response = ChangeWorkingDirectory(cmd.Arguments.FirstOrDefault());
+								break;
+							case "CDUP":
+								response = ChangeWorkingDirectory("..");
+								break;
+							case "QUIT":
+								response = GetResponse(FtpResponses.QUIT);
+								if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob)) { Boolean rc = PerSessionPostJob(); }
+								break;
+							case "REIN":
+								_currentUser = null;
+								_dataClient = null;
+								_currentCulture = CultureInfo.CurrentCulture;
+								_currentEncoding = Encoding.ASCII;
+								DataStreamEncoding = Encoding.UTF8;
+								ControlStreamEncoding = Encoding.ASCII;
+								response = GetResponse(FtpResponses.SERVICE_READY);
+								break;
+							case "PORT":
+								response = Port(cmd.RawArguments);
+								logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
+								break;
+							case "PASV":
+								response = Passive();
+								logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
+								break;
+							case "TYPE":
+								response = Type(cmd.Arguments.FirstOrDefault(), cmd.Arguments.Skip(1).FirstOrDefault());
+								break;
+							case "STRU":
+								response = Structure(cmd.Arguments.FirstOrDefault());
+								break;
+							case "MODE":
+								response = Mode(cmd.Arguments.FirstOrDefault());
+								break;
+							case "RNFR":
+								_renameFrom = cmd.Arguments.FirstOrDefault();
+								response = GetResponse(FtpResponses.RENAME_FROM);
+								break;
+							case "RNTO":
+								response = Rename(_renameFrom, cmd.Arguments.FirstOrDefault());
+								break;
+							case "DELE":
+								response = Delete(cmd.Arguments.FirstOrDefault());
+								break;
+							case "RMD":
+								response = RemoveDir(cmd.Arguments.FirstOrDefault());
+								break;
+							case "MKD":
+								response = CreateDir(cmd.Arguments.FirstOrDefault());
+								break;
+							case "XPWD":
+							case "PWD":
+								response = PrintWorkingDirectory();
+								break;
+							case "RETR":
+								response = Retrieve(cmd.Arguments.FirstOrDefault());
+								logEntry.Date = DateTime.Now;
+								break;
+							case "STOR":
+								response = Store(cmd.Arguments.FirstOrDefault());
+								logEntry.Date = DateTime.Now;
+								break;
+							case "STOU":
+								response = StoreUnique();
+								logEntry.Date = DateTime.Now;
+								break;
+							case "APPE":
+								response = Append(cmd.Arguments.FirstOrDefault());
+								logEntry.Date = DateTime.Now;
+								break;
+							case "LIST":
+								response = List(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
+								logEntry.Date = DateTime.Now;
+								break;
+							case "SYST":
+								response = GetResponse(FtpResponses.SYSTEM);
+								break;
+							case "NOOP":
+								response = GetResponse(FtpResponses.OK);
+								break;
+							case "ACCT":
+								response = Account(cmd.Arguments.FirstOrDefault());
+								break;
+							case "ALLO":
+								response = GetResponse(FtpResponses.OK);
+								break;
+							case "NLST":
+								response = NameList(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
+								break;
+							case "REST":
+								response = Restart(cmd.RawArguments);
+								break;
+							case "SITE":
+							case "STAT":
+							case "HELP":
+							case "SMNT":
+							case "ABOR":
+								response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
+								break;
 
-				try
-				{
-					if (response == null)
-					{
-						 switch (cmd.Code)
-						 {
-							  case "USER":
-									response = User(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "PASS":
-									response = Password(cmd.Arguments.FirstOrDefault());
-									logEntry.CSUriStem = "******";
-									break;
-							  case "CWD":
-									response = ChangeWorkingDirectory(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "CDUP":
-									response = ChangeWorkingDirectory("..");
-									break;
-							  case "QUIT":
-									response = GetResponse(FtpResponses.QUIT);
-									if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob)) { Boolean rc = PerSessionPostJob(); }
-									break;
-							  case "REIN":
-									_currentUser = null;
-									_dataClient = null;
-									_currentCulture = CultureInfo.CurrentCulture;
-									_currentEncoding = Encoding.ASCII;
-									DataStreamEncoding = Encoding.UTF8;
-									ControlStreamEncoding = Encoding.ASCII;
-									response = GetResponse(FtpResponses.SERVICE_READY);
-									break;
-							  case "PORT":
-									response = Port(cmd.RawArguments);
-									logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
-									break;
-							  case "PASV":
-									response = Passive();
-									logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
-									break;
-							  case "TYPE":
-									response = Type(cmd.Arguments.FirstOrDefault(), cmd.Arguments.Skip(1).FirstOrDefault());
-									break;
-							  case "STRU":
-									response = Structure(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "MODE":
-									response = Mode(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "RNFR":
-									_renameFrom = cmd.Arguments.FirstOrDefault();
-									response = GetResponse(FtpResponses.RENAME_FROM);
-									break;
-							  case "RNTO":
-									response = Rename(_renameFrom, cmd.Arguments.FirstOrDefault());
-									break;
-							  case "DELE":
-									response = Delete(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "RMD":
-									response = RemoveDir(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "MKD":
-									response = CreateDir(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "XPWD":
-							  case "PWD":
-									response = PrintWorkingDirectory();
-									break;
-							  case "RETR":
-									response = Retrieve(cmd.Arguments.FirstOrDefault());
-									logEntry.Date = DateTime.Now;
-									break;
-							  case "STOR":
-									response = Store(cmd.Arguments.FirstOrDefault());
-									logEntry.Date = DateTime.Now;
-									break;
-							  case "STOU":
-									response = StoreUnique();
-									logEntry.Date = DateTime.Now;
-									break;
-							  case "APPE":
-									response = Append(cmd.Arguments.FirstOrDefault());
-									logEntry.Date = DateTime.Now;
-									break;
-							  case "LIST":
-									response = List(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
-									logEntry.Date = DateTime.Now;
-									break;
-							  case "SYST":
-									response = GetResponse(FtpResponses.SYSTEM);
-									break;
-							  case "NOOP":
-									response = GetResponse(FtpResponses.OK);
-									break;
-							  case "ACCT":
-									response = Account(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "ALLO":
-									response = GetResponse(FtpResponses.OK);
-									break;
-							  case "NLST":
-									response = NameList(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
-									break;
-							 case "REST":
-									response = Restart(cmd.RawArguments);
-									break;
-							  case "SITE":
-							  case "STAT":
-							  case "HELP":
-							  case "SMNT":
-							  case "ABOR":
-									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-									break;
+							// Extensions defined by rfc 2228
+							case "AUTH":
+								response = Auth(cmd.Arguments.FirstOrDefault());
+								break;
+							case "PBSZ":    
+								response = ProtectBufferSize(cmd.RawArguments);
+								break;
+							case "PROT":    
+								response = ProtectionLevel(cmd.Arguments.FirstOrDefault());
+								break;
 
-							  // Extensions defined by rfc 2228
-							  case "AUTH":
-									response = Auth(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "PBSZ":    
-									response = ProtectBufferSize(cmd.RawArguments);
-									break;
-							  case "PROT":    
-									response = ProtectionLevel(cmd.Arguments.FirstOrDefault());
-									break;
-
-							  // Extensions defined by rfc 2389
-							  case "FEAT":
-									response = GetResponse(FtpResponses.FEATURES);
-									break;
-							  case "OPTS":
+							// Extensions defined by rfc 2389
+							case "FEAT":
+								response = GetResponse(FtpResponses.FEATURES);
+								break;
+							case "OPTS":
 //									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-									response = Options(cmd.Arguments);
-									break;
+								response = Options(cmd.Arguments);
+								break;
 
-							  // Extensions defined by rfc 3659
-							  case "MDTM":
-									response = FileModificationTime(cmd.Arguments.FirstOrDefault());
-									break;
-							  case "SIZE":
-									response = FileSize(cmd.Arguments.FirstOrDefault());
-									break;
+							// Extensions defined by rfc 3659
+							case "MDTM":
+								response = FileModificationTime(cmd.Arguments.FirstOrDefault());
+								break;
+							case "SIZE":
+								response = FileSize(cmd.Arguments.FirstOrDefault());
+								break;
 
-							  // Extensions defined by rfc 2428
-							  case "EPRT":
-									response = EPort(cmd.RawArguments);
-									logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
-									break;
-							  case "EPSV":
-									response = EPassive();
-									logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
-									break;
+							// Extensions defined by rfc 2428
+							case "EPRT":
+								response = EPort(cmd.RawArguments);
+								logEntry.CPort = _dataEndpoint.Port.ToString(CultureInfo.InvariantCulture);
+								break;
+							case "EPSV":
+								response = EPassive();
+								logEntry.SPort = ((IPEndPoint)_passiveListener.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture);
+								break;
 
-							  // Extensions defined by rfc 2640
-							  case "LANG":
-									response = Language(cmd.Arguments.FirstOrDefault());
-									break;
+							// Extensions defined by rfc 2640
+							case "LANG":
+								response = Language(cmd.Arguments.FirstOrDefault());
+								break;
 
-							  default:
-									response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
-									break;
-						 }
-						 logEntry.CSMethod = cmd.Code;
-						 logEntry.CSUsername = _username;
-						 logEntry.SCStatus = response.Code;
+							default:
+								response = GetResponse(FtpResponses.NOT_IMPLEMENTED);
+								break;
+						}
+						logEntry.CSMethod = cmd.Code;
+						logEntry.CSUsername = _username;
+						logEntry.SCStatus = response.Code;
 
-						 _log.Info(logEntry);
+						_log.Info(logEntry);
 
-					}
-				} catch (Exception ex)
-				{
-					_log.ErrorFormat("{0}\n{1}", ex.Message, ex.StackTrace);
 				}
+			} catch (Exception ex)
+			{
+				_log.ErrorFormat("{0}\n{1}", ex.Message, ex.StackTrace);
+			}
 
             return response;
         }
@@ -466,7 +535,7 @@ namespace SharpServer.Ftp
 
         protected override void OnCommandComplete(Command cmd)
         {
-            if (cmd.Code == "AUTH")
+            if (cmd.Code == "AUTH" && cmd.Arguments.FirstOrDefault().Equals("TLS"))
             {
 					_sslEnabled = false;
 					try
@@ -475,7 +544,9 @@ namespace SharpServer.Ftp
 						_sslStream.Id = "controlstream";
 						_sslStream.ReadTimeout = 5000;
 						_sslStream.WriteTimeout = 5000;
-						_sslStream.AuthenticateAsServer(ServerCertificate, false, SslProtocols.Tls, true);
+						_sslStream.AuthenticateAsServer(ServerCertificate, false, 
+                            SslProtocols.Tls|SslProtocols.Tls11|SslProtocols.Tls12, 
+                            false);
 						_sslEnabled = true;
 					}
 					catch (AuthenticationException exception)
@@ -775,12 +846,12 @@ namespace SharpServer.Ftp
             string[] ipAndPort = hostPort.Split(',');
 
             byte[] ipAddress = ipAndPort.Take(4).Select(s => Convert.ToByte(s, CultureInfo.InvariantCulture)).ToArray();
-            byte[] port = ipAndPort.Skip(4).Select(s => Convert.ToByte(s, CultureInfo.InvariantCulture)).ToArray();
+            byte[] portBytes = ipAndPort.Skip(4).Select(s => Convert.ToByte(s, CultureInfo.InvariantCulture)).ToArray();
 
             if (BitConverter.IsLittleEndian)
-                Array.Reverse(port);
+                Array.Reverse(portBytes);
 
-            _dataEndpoint = new IPEndPoint(new IPAddress(ipAddress), BitConverter.ToUInt16(port, 0));
+            _dataEndpoint = new IPEndPoint(new IPAddress(ipAddress), BitConverter.ToUInt16(portBytes, 0));
 
             return GetResponse(FtpResponses.OK);
         }
@@ -814,15 +885,15 @@ namespace SharpServer.Ftp
 
             IPAddress localIp = ((IPEndPoint)ControlClient.Client.LocalEndPoint).Address;
 
-            _passiveListener = PassiveListeners.GetListener(localIp);
+            _passiveListener = PassiveListeners.GetListener(localIp,minPort,maxPort);
 
             try
             {
-					_passiveListener.Start(1);
+				_passiveListener.Start(1);
             }
-            catch
+            catch (Exception ex)
             {
-                _log.Error("No more ports available");
+                _log.ErrorFormat("No more ports available ex={0}",ex.Message);
                 return GetResponse(FtpResponses.UNABLE_TO_OPEN_DATA_CONNECTION);
             }
 
@@ -845,7 +916,7 @@ namespace SharpServer.Ftp
 
             IPAddress localIp = ((IPEndPoint)ControlClient.Client.LocalEndPoint).Address;
 
-            _passiveListener = PassiveListeners.GetListener(localIp);
+            _passiveListener = PassiveListeners.GetListener(localIp,minPort,maxPort);
 
             try
             {
@@ -1432,28 +1503,30 @@ namespace SharpServer.Ftp
 					}
 					if (_protected)
 					{
-						using (GnuSslStream dataStream = new GnuSslStream(_dataClient.GetStream(), false))
+						using (var dataStream = new GnuSslStream(_dataClient.GetStream()))
 						{
 							try
 							{
 								dataStream.Id = "Datastream";
 								dataStream.ReadTimeout = 5000;
 								dataStream.WriteTimeout = 5000;
-								dataStream.AuthenticateAsServer(ServerCertificate, false, SslProtocols.Tls, true);
-								response = op.Operation(dataStream, op.Arguments);
-							}
-							catch (Exception)
+                                dataStream.AuthenticateAsServer(ServerCertificate, false,
+                                    SslProtocols.Tls | SslProtocols.Tls11 | SslProtocols.Tls12,
+                                    false);
+                                response = op.Operation(dataStream, op.Arguments);
+                        }
+                        catch (Exception ex)
 							{
+								_log.ErrorFormat("message={0}\nstacktrace={1}", ex.Message, ex.StackTrace);
 								response = GetResponse(FtpResponses.UNABLE_TO_OPEN_DATA_CONNECTION);
 								//throw;
 							}
 							dataStream.Close();
-							//response = op.Operation(dataStream, op.Arguments);
 						}
 					}
 					else
 					{
-						using (NetworkStream dataStream = _dataClient.GetStream())
+						using (var dataStream = _dataClient.GetStream())
 						{
 							response = op.Operation(dataStream, op.Arguments);
 						}

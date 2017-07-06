@@ -11,23 +11,36 @@ namespace SharpServer
     {
         public event EventHandler<EventArgs> Disposed;
 
-		  private X509Certificate2 _ServerCertificate;
-		  internal X509Certificate2 ServerCertificate
-		  {
-			  get { return _ServerCertificate; }
-			  set { _ServerCertificate = value; }
-		  }
+        private X509Certificate2 _ServerCertificate;
+        protected internal X509Certificate2 ServerCertificate
+        {
+	        get { return _ServerCertificate; }
+	        set { _ServerCertificate = value; }
+        }
 
-		  private String _userStore;
-		  public String UserStore { 
-			  get { return _userStore; } 
-			  set { _userStore = value; } 
-		  }
+        private String _userStore;
+        protected internal String UserStore { 
+	        get { return _userStore; } 
+	        set { _userStore = value; } 
+        }
 
-        private bool _disposed = false;
+        private int _minPort;
+        protected internal int minPort
+        {
+            get { return _minPort; }
+            set { _minPort = value; }
+        }
+
+        private int _maxPort;
+        protected internal int maxPort
+        {
+            get { return _maxPort; }
+            set { _maxPort = value; }
+        }
 
         #region Private Fields
 
+        private bool _disposed = false;
         private byte[] _buffer = new byte[128];
         private StringBuilder _commandBuffer = new StringBuilder();
 		  private Encoding _controlStreamEncoding = new System.Text.ASCIIEncoding();      // don't ccreate BOM marker with 3 characters
