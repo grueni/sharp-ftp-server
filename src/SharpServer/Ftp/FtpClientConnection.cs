@@ -526,7 +526,7 @@ namespace SharpServer.Ftp
 
             Write(GetResponse(FtpResponses.SERVICE_READY));
 
-            _validCommands.AddRange(new string[] { "AUTH", "USER", "PASS", "ACCT", "QUIT", "HELP", "NOOP" });
+            _validCommands.AddRange(new string[] { "AUTH", "USER", "PASS", "ACCT", "QUIT", "HELP", "NOOP","PBSZ","PROT" });
 
             _dataClient = new TcpClient();
 
