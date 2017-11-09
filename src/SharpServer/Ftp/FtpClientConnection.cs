@@ -20,7 +20,7 @@ namespace SharpServer.Ftp
 {
     public class FtpClientConnection : ClientConnection
     {
-        
+        #region private classes
         /// <summary>
         /// This class allows us to maintain a list of TcpListeners for reuse, so we don't run out of ports under heavy load.
         /// </summary>
@@ -180,6 +180,7 @@ namespace SharpServer.Ftp
             public Func<Stream, string, Response> Operation { get; set; }
             public string Arguments { get; set; }
         }
+        #endregion
 
         #region Enums
 
@@ -213,6 +214,16 @@ namespace SharpServer.Ftp
 
         #endregion
 
+        #region constructors
+        public FtpClientConnection()
+    : base()
+        {
+            _validCommands = new List<string>();
+            _renameFrom = null;
+        }
+        #endregion
+
+        #region private fields
         private const int BUFFER_SIZE = 8096;
 
         private TcpListener _passiveListener;
@@ -249,15 +260,11 @@ namespace SharpServer.Ftp
         private Encoding _currentEncoding = Encoding.ASCII;
         private CultureInfo _currentCulture = CultureInfo.CurrentCulture;
 
-        public FtpClientConnection()
-            : base()
-        {
-            _validCommands = new List<string>();
-            _renameFrom = null;
-        }
+		private Boolean _hasSTORed = false;
+        #endregion
 
-		 private Boolean _hasSTORed = false;
-		  private FtpUser currentUser
+        #region private attributes
+        private FtpUser currentUser
 		  {
 			  get { return _currentUser; }
 			  set
@@ -302,6 +309,7 @@ namespace SharpServer.Ftp
 				  }
 			  }
 		  }
+        #endregion
 
         #region Overrides
 
@@ -354,7 +362,9 @@ namespace SharpServer.Ftp
 								break;
 							case "QUIT":
 								response = GetResponse(FtpResponses.QUIT);
-								if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob)) { Boolean rc = PerSessionPostJob(); }
+								if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob)) {
+                                    Boolean rc = PerSessionPostJob(_currentUser.PerSession.PostJob);
+                                }
 								break;
 							case "REIN":
 								_currentUser = null;
@@ -406,17 +416,20 @@ namespace SharpServer.Ftp
 								response = Retrieve(cmd.Arguments.FirstOrDefault());
 								logEntry.Date = DateTime.Now;
 								break;
-							case "STOR":
-								response = Store(cmd.Arguments.FirstOrDefault());
-								logEntry.Date = DateTime.Now;
-								break;
-							case "STOU":
+                            case "STOR":
+                                response = Store(cmd.Arguments.FirstOrDefault());
+                                checkIfJobShouldBeStarted(cmd);
+                                logEntry.Date = DateTime.Now;
+                                break;
+                            case "STOU":
 								response = StoreUnique();
-								logEntry.Date = DateTime.Now;
+                                checkIfJobShouldBeStarted(cmd);
+                                logEntry.Date = DateTime.Now;
 								break;
 							case "APPE":
 								response = Append(cmd.Arguments.FirstOrDefault());
-								logEntry.Date = DateTime.Now;
+                                checkIfJobShouldBeStarted(cmd);
+                                logEntry.Date = DateTime.Now;
 								break;
 							case "LIST":
 								response = List(cmd.Arguments.FirstOrDefault() ?? _currentDirectory);
@@ -553,10 +566,15 @@ namespace SharpServer.Ftp
 					{
 						_log.ErrorFormat("{0}", exception.Message);
 					}
-					catch (ArgumentNullException exception)
-					{
-						_log.ErrorFormat("{0}", exception.Message);
-					}
+                    catch (ArgumentNullException exception)
+                    {
+                        _log.ErrorFormat("{0}", exception.Message);
+                    }
+                    catch (Exception exception)
+                    {
+                        _log.ErrorFormat("{0}", exception.Message);
+                    }
+
             }
 
             FtpPerformanceCounters.IncrementCommandsExecuted();
@@ -626,33 +644,59 @@ namespace SharpServer.Ftp
 
         #endregion
 
-		  private Boolean PerSessionPostJob()
-		  {
-			  Boolean rc = false;
-			  String job = _currentUser.PerSession.PostJob;
-			  if (File.Exists(job))
-			  {
-				  try
-				  {
-					  var process = new Process(job);
-					  process.Options.Add(_root);
-					  process.Options.Add(_currentUser.PerSession.BJSJobDirectory);
-					  process.Options.StandardOutputEncoding = Encoding.UTF8;
-					  process.Options.StandardErrorEncoding = Encoding.UTF8;
-					  process.Timeout = _currentUser.PerSession.PostJobTimeoutInSeconds;
-					  var result = process.Run();
-					  _log.DebugFormat("job={0} {1}   ExitCode={2} Status={3}\nStandardOutput={4}\nStandardError={5}", job, _root,
-						  result.ExitCode,result.Status,result.StandardOutput,result.StandardError);
-				  }
-				  catch (Exception ex)
-				  {
-					  _log.ErrorFormat("{0}\n{1}",ex.Message,ex.StackTrace);
-				  }
-			  }
-			  else
-				  _log.ErrorFormat("Datei nicht gefunden PerSessionPostJob={0}",job);
-			  return rc;
-		  }
+        #region private functions
+        private void checkIfJobShouldBeStarted(Command cmd)
+        {
+            if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJobPerfile))
+            {
+                Boolean rc = PerSessionPostJob(_currentUser.PerSession.PostJobPerfile, NormalizeFilename(cmd.Arguments.FirstOrDefault()));
+            }
+        }
+
+        private Boolean PerSessionPostJob(String job)
+        {
+            return PerSessionPostJob(job, String.Empty);
+        }
+
+
+        private Boolean PerSessionPostJob(String job, String file)
+		{
+			Boolean rc = false;
+			if (File.Exists(job))
+			{
+				try
+				{
+					var process = new Process(job);
+                    if (!String.IsNullOrEmpty(_root))
+                    {
+                        process.Options.EnvironmentVariables.Add("FTP_Root", _root);
+                    }
+                    if (!String.IsNullOrEmpty(file))
+                    {
+                        process.Options.EnvironmentVariables.Add("FTP_File", file);
+                    }
+                    if (!String.IsNullOrEmpty(_currentUser.PerSession.BJSJobDirectory))
+                    {
+                        process.Options.EnvironmentVariables.Add("FTP_BJSJobDirectory", _currentUser.PerSession.BJSJobDirectory);
+                    }
+                    process.Options.Add(_root);
+					process.Options.Add(_currentUser.PerSession.BJSJobDirectory);
+					process.Options.StandardOutputEncoding = Encoding.UTF8;
+					process.Options.StandardErrorEncoding = Encoding.UTF8;
+					process.Timeout = _currentUser.PerSession.PostJobTimeoutInSeconds;
+					var result = process.Run();
+					_log.DebugFormat("job={0} root={1} ExitCode={2} Status={3}\nStandardOutput={4}\nStandardError={5}", job, _root,
+						result.ExitCode,result.Status,result.StandardOutput,result.StandardError);
+				}
+				catch (Exception ex)
+				{
+					_log.ErrorFormat("{0}\n{1}",ex.Message,ex.StackTrace);
+				}
+			}
+			else
+				_log.ErrorFormat("Datei nicht gefunden PerSessionPostJob={0}",job);
+			return rc;
+		}
 
         private bool IsPathValid(string path)
         {
@@ -697,7 +741,7 @@ namespace SharpServer.Ftp
             return null;
         }
 
-		  private long CopyStream(Stream input, Stream output, Action<int> perfAction)
+		private long CopyStream(Stream input, Stream output, Action<int> perfAction)
         {
 			  Stream limitedStream = output;
 
@@ -715,6 +759,7 @@ namespace SharpServer.Ftp
         {
             return response.SetCulture(_currentCulture);
         }
+        #endregion
 
         #region FTP Commands
 
@@ -1055,20 +1100,19 @@ namespace SharpServer.Ftp
         {
             String Pathname = NormalizeFilename(pathname);
 
-				if (Pathname != null)
-				{
-					_log.DebugFormat("STOR {0}",Pathname);
-					_hasSTORed = true;
-					var state = new DataConnectionOperation { Arguments = Pathname, Operation = StoreOperation };
-
-					SetupDataConnectionOperation(state);
-
-					return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR" + (_protected ? withSsl : "")));
-				}
-				else
-				{
-					_log.ErrorFormat("pathname could not be normalized: {0}", pathname);
-				}
+			if (Pathname != null)
+			{
+				_log.DebugFormat("STOR {0}",Pathname);
+				var state = new DataConnectionOperation { Arguments = Pathname, Operation = StoreOperation };
+                SetupDataConnectionOperation(state);
+                var rc = GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR" + (_protected ? withSsl : "")));
+                _hasSTORed = true;
+                return rc;
+            }
+            else
+			{
+				_log.ErrorFormat("pathname could not be normalized: {0}", pathname);
+			}
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
         }

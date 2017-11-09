@@ -32,29 +32,33 @@ namespace SharpServer
 		 }
     }
 
-	 [DataContract]
-	 public class FtpUserPerSession
-	 {
-		 [DataMember]
-		 public Boolean UniqueDirectory { get; set; }
+    [DataContract]
+    public class FtpUserPerSession
+    {
+        [DataMember]
+        public Boolean UniqueDirectory { get; set; }
 
-		 [DataMember]
-		 public String PostJob { get; set; }
+        [DataMember]
+        public String PostJob { get; set; }
 
-		 [DataMember]
-		 public int PostJobTimeoutInSeconds { get; set; }
+        [DataMember]
+        public String PostJobPerfile { get; set; }
 
-		 [DataMember]
-		 public String BJSJobDirectory { get; set; }
+        [DataMember]
+        public int PostJobTimeoutInSeconds { get; set; }
 
-		 public override String ToString()
-		 {
-			 return String.Format("UniqueDirectory={0} PostJob={1} PostJobTimeoutInSeconds={2} BJSJobDirectory={3}", UniqueDirectory, PostJob, PostJobTimeoutInSeconds, BJSJobDirectory);
-		 }
-	 }
+        [DataMember]
+        public String BJSJobDirectory { get; set; }
 
-//	[Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
-	public static class FtpUserStore
+        public override String ToString()
+        {
+            return String.Format("UniqueDirectory={0} PostJob={1} PostJobPerfile={2} PostJobTimeoutInSeconds={3} BJSJobDirectory={4}",
+                UniqueDirectory, PostJob, PostJobPerfile, PostJobTimeoutInSeconds, BJSJobDirectory);
+        }
+    }
+
+    //	[Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
+    public static class FtpUserStore
 	{
 		private static String userStore;
 		private static String gHomeDir = @"p:\temp\ftphome\";
