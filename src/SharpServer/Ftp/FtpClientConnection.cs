@@ -180,6 +180,12 @@ namespace SharpServer.Ftp
             public Func<Stream, string, Response> Operation { get; set; }
             public string Arguments { get; set; }
         }
+
+        private class PostJob
+        {
+            public string job { get; set; }
+            public Command cmd { get; set; }
+        }
         #endregion
 
         #region Enums
@@ -264,6 +270,8 @@ namespace SharpServer.Ftp
         #endregion
 
         #region private attributes
+        private List<PostJob> postJobs = new List<PostJob>();
+
         private FtpUser currentUser
 		  {
 			  get { return _currentUser; }
@@ -286,7 +294,7 @@ namespace SharpServer.Ftp
 					  _currentUser = value;
 					  _log.DebugFormat("_currentUser={0}", _currentUser.ToString());
 					  _hasSTORed = false;
-					  if (_currentUser.PerSession.UniqueDirectory)
+					  if (_currentUser.PerSession != null && _currentUser.PerSession.UniqueDirectory)
 					  {
 						  var guid = Guid.NewGuid().ToString();
 						  _root = Path.Combine(_currentUser.HomeDir,guid);
@@ -360,13 +368,18 @@ namespace SharpServer.Ftp
 							case "CDUP":
 								response = ChangeWorkingDirectory("..");
 								break;
-							case "QUIT":
-								response = GetResponse(FtpResponses.QUIT);
-								if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob)) {
-                                    Boolean rc = PerSessionPostJob(_currentUser.PerSession.PostJob);
+                            case "QUIT":
+                                response = GetResponse(FtpResponses.QUIT);
+                                foreach (var p in postJobs)
+                                {
+                                    Boolean rc = PerSessionPostJob(p.job, p.cmd);
                                 }
-								break;
-							case "REIN":
+                                if (_currentUser.PerSession != null && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob))
+                                {
+                                    Boolean rc = PerSessionPostJob(_currentUser.PerSession.PostJob,cmd);
+                                }
+                            break;
+                            case "REIN":
 								_currentUser = null;
 								_dataClient = null;
 								_currentCulture = CultureInfo.CurrentCulture;
@@ -414,10 +427,11 @@ namespace SharpServer.Ftp
 								break;
 							case "RETR":
 								response = Retrieve(cmd.Arguments.FirstOrDefault());
-								logEntry.Date = DateTime.Now;
+                                checkIfJobShouldBeStarted(cmd);
+                                logEntry.Date = DateTime.Now;
 								break;
                             case "STOR":
-                                response = Store(cmd.Arguments.FirstOrDefault());
+                                response = Store(String.Join(" ",cmd.Arguments.ToArray()));
                                 checkIfJobShouldBeStarted(cmd);
                                 logEntry.Date = DateTime.Now;
                                 break;
@@ -427,7 +441,7 @@ namespace SharpServer.Ftp
                                 logEntry.Date = DateTime.Now;
 								break;
 							case "APPE":
-								response = Append(cmd.Arguments.FirstOrDefault());
+								response = Append(String.Join(" ", cmd.Arguments.ToArray()));
                                 checkIfJobShouldBeStarted(cmd);
                                 logEntry.Date = DateTime.Now;
 								break;
@@ -647,19 +661,19 @@ namespace SharpServer.Ftp
         #region private functions
         private void checkIfJobShouldBeStarted(Command cmd)
         {
-            if (_hasSTORed && !String.IsNullOrEmpty(_currentUser.PerSession.PostJobPerfile))
+            if (_currentUser.PerSession != null && !String.IsNullOrEmpty(_currentUser.PerSession.PostJobPerfile))
             {
-                Boolean rc = PerSessionPostJob(_currentUser.PerSession.PostJobPerfile, NormalizeFilename(cmd.Arguments.FirstOrDefault()));
+                postJobs.Add(new PostJob() { job = _currentUser.PerSession.PostJobPerfile, cmd = cmd });
             }
         }
 
         private Boolean PerSessionPostJob(String job)
         {
-            return PerSessionPostJob(job, String.Empty);
+            return PerSessionPostJob(job, null);
         }
 
 
-        private Boolean PerSessionPostJob(String job, String file)
+        private Boolean PerSessionPostJob(String job, Command cmd)
 		{
 			Boolean rc = false;
 			if (File.Exists(job))
@@ -671,19 +685,22 @@ namespace SharpServer.Ftp
                     {
                         process.Options.EnvironmentVariables.Add("FTP_Root", _root);
                     }
-                    if (!String.IsNullOrEmpty(file))
+                    if (cmd != null)
                     {
+                        var file = NormalizeFilename(String.Join(" ", cmd.Arguments.ToArray()));
+                        process.Options.EnvironmentVariables.Add("FTP_Code", cmd.Code);
                         process.Options.EnvironmentVariables.Add("FTP_File", file);
                     }
-                    if (!String.IsNullOrEmpty(_currentUser.PerSession.BJSJobDirectory))
+                    if (_currentUser.PerSession != null)
                     {
-                        process.Options.EnvironmentVariables.Add("FTP_BJSJobDirectory", _currentUser.PerSession.BJSJobDirectory);
+                        if (String.IsNullOrEmpty(_currentUser.PerSession.BJSJobDirectory))
+                            process.Options.EnvironmentVariables.Add("FTP_BJSJobDirectory", _currentUser.PerSession.BJSJobDirectory);
+                        process.Timeout = _currentUser.PerSession.PostJobTimeoutInSeconds;
                     }
                     process.Options.Add(_root);
 					process.Options.Add(_currentUser.PerSession.BJSJobDirectory);
 					process.Options.StandardOutputEncoding = Encoding.UTF8;
 					process.Options.StandardErrorEncoding = Encoding.UTF8;
-					process.Timeout = _currentUser.PerSession.PostJobTimeoutInSeconds;
 					var result = process.Run();
 					_log.DebugFormat("job={0} root={1} ExitCode={2} Status={3}\nStandardOutput={4}\nStandardError={5}", job, _root,
 						result.ExitCode,result.Status,result.StandardOutput,result.StandardError);
@@ -721,12 +738,12 @@ namespace SharpServer.Ftp
             }
             else if (path.StartsWith("/", StringComparison.OrdinalIgnoreCase))
             {
-					path = Path.Combine(_root, path.Substring(1));
-				}
+                path = Path.Combine(_root, path.Substring(1));
+            }
             else
             {
-					path = Path.Combine(_currentDirectory, path);
-				}
+                path = Path.Combine(_currentDirectory, path);
+            }
 
             return IsPathValid(path) ? path : null;
         }
@@ -1098,6 +1115,7 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response Store(string pathname)
         {
+            _log.DebugFormat("pathname={0}", pathname);
             String Pathname = NormalizeFilename(pathname);
 
 			if (Pathname != null)
