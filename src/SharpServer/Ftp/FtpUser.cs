@@ -10,6 +10,11 @@ namespace SharpServer
     [DataContract]
     public class FtpUser
     {
+        public FtpUser()
+        {
+            VirtualDirectories = new List<VirtualDirectory>();
+        }
+
 		 [DataMember]
 		 public string UserName { get; set; }
 
@@ -25,10 +30,21 @@ namespace SharpServer
 		 [DataMember]
 		 public FtpUserPerSession PerSession { get; set; }
 
-		 public bool IsAnonymous { get; set; }
+        [DataMember]
+        public List<VirtualDirectory> VirtualDirectories { get; set; }
+
+        public bool IsAnonymous { get; set; }
 
 		 public override String ToString() {
-			 return String.Format("UserName={0} HomeDir={1} PerSession={2}", UserName, HomeDir, PerSession);
+            String text1 = String.Empty;
+            if (VirtualDirectories != null)
+            {
+                foreach (var vd in VirtualDirectories)
+                {
+                    text1 = (text1.Equals(String.Empty)) ? vd.ToString() : String.Format("{0}\n{1}", text1, vd.ToString());
+                }
+            }
+            return String.Format("UserName={0} HomeDir={1} PerSession={2} VirtualDirectories={3}", UserName, HomeDir, PerSession,text1);
 		 }
     }
 
@@ -57,6 +73,21 @@ namespace SharpServer
         }
     }
 
+    [DataContract]
+    public class VirtualDirectory
+    {
+        [DataMember]
+        public String Alias { get; set; }
+
+        [DataMember]
+        public String Path { get; set; }
+
+        public override String ToString()
+        {
+            return String.Format("Alias={0} Path={1}", Alias, Path);
+        }
+    }
+
     //	[Obsolete("This is not a real user store. It is just a stand-in for testing. DO NOT USE IN PRODUCTION CODE.")]
     public static class FtpUserStore
 	{
@@ -75,12 +106,13 @@ namespace SharpServer
 					}
 					else
 					{
-						users.Add(new FtpUser
-						{
-							UserName = "rick",
-							Password = "test",
-							HomeDir = gHomeDir,
-							PerSession = new FtpUserPerSession { UniqueDirectory = false, BJSJobDirectory="changeme", PostJob = "changeme", PostJobTimeoutInSeconds = 1 },
+                        users.Add(new FtpUser
+                        {
+                            UserName = "rick",
+                            Password = "test",
+                            HomeDir = gHomeDir,
+                            PerSession = new FtpUserPerSession { UniqueDirectory = false, BJSJobDirectory = "changeme", PostJob = "changeme", PostJobTimeoutInSeconds = 1 },
+                            VirtualDirectories = new List<VirtualDirectory> { new VirtualDirectory { Alias = "/temp", Path = @"c:\temp" } },
 							IsAnonymous = false
 						});
 						users.Add(new FtpUser
@@ -89,7 +121,8 @@ namespace SharpServer
 							Password = "changeme",
 							HomeDir = @"changeme",
 							PerSession = new FtpUserPerSession { UniqueDirectory = false, BJSJobDirectory = "changeme", PostJob = "changeme", PostJobTimeoutInSeconds = 1 },
-							IsAnonymous = false
+                            VirtualDirectories = new List<VirtualDirectory> { new VirtualDirectory { Alias = "/temp", Path = @"c:\temp" } },
+                            IsAnonymous = false
 						});
 					}
 					Ftp.FtpServer.Serialize<List<FtpUser>>(userStore, users);

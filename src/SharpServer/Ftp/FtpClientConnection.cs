@@ -142,7 +142,7 @@ namespace SharpServer.Ftp
         {
             public static readonly Response QUIT = new Response { Code = "221", Text = FtpReplies.QUIT, ShouldQuit = true };
             public static readonly Response UNABLE_TO_OPEN_DATA_CONNECTION = new Response { Code = "425", Text = FtpReplies.UNABLE_TO_OPEN_DATA_CONNECTION, ShouldQuit = true };
-				public static readonly Response CANNOT_OPEN_DATACONNECTION = new Response { Code = "500", ResourceManager = FtpReplies.ResourceManager, Text = "SYNTAX_ERROR" };
+			public static readonly Response CANNOT_OPEN_DATACONNECTION = new Response { Code = "500", ResourceManager = FtpReplies.ResourceManager, Text = "SYNTAX_ERROR" };
             public static readonly Response SYSTEM = new Response { Code = "215", ResourceManager = FtpReplies.ResourceManager, Text = "SYSTEM" };
             public static readonly Response SERVICE_READY = new Response { Code = "220", ResourceManager = FtpReplies.ResourceManager, Text = "SERVICE_READY" };
             public static readonly Response NOT_IMPLEMENTED = new Response { Code = "502", ResourceManager = FtpReplies.ResourceManager, Text = "NOT_IMPLEMENTED" };
@@ -161,9 +161,9 @@ namespace SharpServer.Ftp
             public static readonly Response ENABLING_TLS = new Response { Code = "234", ResourceManager = FtpReplies.ResourceManager, Text = "ENABLING_TLS" };
             public static readonly Response TRANSFER_ABORTED = new Response { Code = "426", ResourceManager = FtpReplies.ResourceManager, Text = "TRANSFER_ABORTED" };
             public static readonly Response TRANSFER_SUCCESSFUL = new Response { Code = "226", ResourceManager = FtpReplies.ResourceManager, Text = "TRANSFER_SUCCESSFUL" };
-				public static readonly Response UTF8_ENCODING_ON = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_ENCODING_ON" };
-				public static readonly Response UTF8_NLST_ON = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_NLST_ON" };
-				public static readonly Response UTF8_NLST_OFF = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_NLST_OFF" };
+			public static readonly Response UTF8_ENCODING_ON = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_ENCODING_ON" };
+			public static readonly Response UTF8_NLST_ON = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_NLST_ON" };
+			public static readonly Response UTF8_NLST_OFF = new Response { Code = "200", ResourceManager = FtpReplies.ResourceManager, Text = "UTF8_NLST_OFF" };
 
             public static readonly Response ENTERING_PASSIVE_MODE = new Response { Code = "227", ResourceManager = FtpReplies.ResourceManager, Text = "ENTERING_PASSIVE_MODE" };
             public static readonly Response ENTERING_EXTENDED_PASSIVE_MODE = new Response { Code = "229", ResourceManager = FtpReplies.ResourceManager, Text = "ENTERING_EXTENDED_PASSIVE_MODE" };
@@ -172,7 +172,7 @@ namespace SharpServer.Ftp
             public static readonly Response CURRENT_DIRECTORY = new Response { Code = "257", ResourceManager = FtpReplies.ResourceManager, Text = "CURRENT_DIRECTORY" };
 
             public static readonly Response FEATURES = new Response { Code = "211-", Text = string.Format("{0}:\r\n MDTM\r\n SIZE\r\n UTF8\r\n211 End", FtpReplies.EXTENSIONS_SUPPORTED) };
-				public static readonly Response RESTART_FROM = new Response { Code = "350", ResourceManager = FtpReplies.ResourceManager, Text = "RESTART_FROM" };
+			public static readonly Response RESTART_FROM = new Response { Code = "350", ResourceManager = FtpReplies.ResourceManager, Text = "RESTART_FROM" };
         }
 
         private class DataConnectionOperation
@@ -250,7 +250,7 @@ namespace SharpServer.Ftp
 		private bool _sslEnabled = false;
 		private bool _protected = false;
 		private long _transPosition = 0; 
-		private readonly String withSsl = " with TLS/SSL";
+		private readonly String _withSsl = " with TLS/SSL";
 
         private bool _disposed = false;
 
@@ -267,63 +267,73 @@ namespace SharpServer.Ftp
         private CultureInfo _currentCulture = CultureInfo.CurrentCulture;
 
 		private Boolean _hasSTORed = false;
+
+        private List<PostJob> _postJobs = new List<PostJob>();
+
+        private VirtualDirectory _currentVirtualDirectory = null;
+        private string _currentAlias = null;
+
         #endregion
 
         #region private attributes
-        private List<PostJob> postJobs = new List<PostJob>();
-
         private FtpUser currentUser
-		  {
-			  get { return _currentUser; }
-			  set
-			  {
-				  if (value == null)
-				  {
-					  _root = null;
-					  _currentDirectory = null;
-					  _username = null;
-					  _hasSTORed = false;
-					  if (_currentUser.IsAnonymous)
-						  FtpPerformanceCounters.IncrementAnonymousUsers();
-					  else
-						  FtpPerformanceCounters.IncrementNonAnonymousUsers();
-					  _currentUser = value;
-				  }
-				  else
-				  {
-					  _currentUser = value;
-					  _log.DebugFormat("_currentUser={0}", _currentUser.ToString());
-					  _hasSTORed = false;
-					  if (_currentUser.PerSession != null && _currentUser.PerSession.UniqueDirectory)
-					  {
-						  var guid = Guid.NewGuid().ToString();
-						  _root = Path.Combine(_currentUser.HomeDir,guid);
-						  _currentDirectory = _root;
-						  if (!Directory.Exists(_root)) { Directory.CreateDirectory(_root); }
-						  else
-						  {
-							  _log.ErrorFormat("UniqueDirectory already exists - nearly impossible : {0}", _root);
-						  }
-					  }
-					  else
-					  {
-						  _root = _currentUser.HomeDir;
-						  _currentDirectory = _root;
-					  }
-					  if (_currentUser.IsAnonymous)
-						  FtpPerformanceCounters.IncrementAnonymousUsers();
-					  else
-						  FtpPerformanceCounters.IncrementNonAnonymousUsers();
-				  }
-			  }
-		  }
+        {
+            get { return _currentUser; }
+            set
+            {
+                if (value == null)
+                {
+                    _root = null;
+                    _currentDirectory = null;
+                    _username = null;
+                    _hasSTORed = false;
+                    if (_currentUser.IsAnonymous)
+                        FtpPerformanceCounters.IncrementAnonymousUsers();
+                    else
+                        FtpPerformanceCounters.IncrementNonAnonymousUsers();
+                    _currentUser = value;
+                }
+                else
+                {
+                    _currentUser = value;
+                    _log.DebugFormat("_currentUser={0}", _currentUser.ToString());
+                    _hasSTORed = false;
+                    if (_currentUser.PerSession != null && _currentUser.PerSession.UniqueDirectory)
+                    {
+                        var guid = Guid.NewGuid().ToString();
+                        _root = Path.Combine(_currentUser.HomeDir, guid);
+                        _currentDirectory = _root;
+                        if (!Directory.Exists(_root)) { Directory.CreateDirectory(_root); }
+                        else
+                        {
+                            _log.ErrorFormat("UniqueDirectory already exists - nearly impossible : {0}", _root);
+                        }
+                    }
+                    else
+                    {
+                        _root = _currentUser.HomeDir;
+                        _currentDirectory = _root;
+                    }
+                    if (_currentUser.IsAnonymous)
+                        FtpPerformanceCounters.IncrementAnonymousUsers();
+                    else
+                        FtpPerformanceCounters.IncrementNonAnonymousUsers();
+                }
+            }
+        }
         #endregion
 
         #region Overrides
 
         protected override Response HandleCommand(Command cmd)
         {
-	      _log.DebugFormat("cmd.Code={0} cmd.Arguments={1}", cmd.Code,String.Join(" ",cmd.Arguments));
+            if (_log.IsDebugEnabled)
+            {
+                if (cmd.Code.ToString().Equals("PASS"))
+                    _log.DebugFormat("cmd.Code={0} cmd.Arguments={1}", cmd.Code, String.Join(" ", "***"));
+                else
+                    _log.DebugFormat("cmd.Code={0} cmd.Arguments={1}", cmd.Code, String.Join(" ", cmd.Arguments));
+            }
             Response response = null;
 
             var logEntry = new FtpLogEntry
@@ -370,15 +380,15 @@ namespace SharpServer.Ftp
 								break;
                             case "QUIT":
                                 response = GetResponse(FtpResponses.QUIT);
-                                foreach (var p in postJobs)
+                                foreach (var p in _postJobs)
                                 {
                                     Boolean rc = PerSessionPostJob(p.job, p.cmd);
                                 }
-                                if (_currentUser.PerSession != null && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob))
+                                if (_currentUser != null && _currentUser.PerSession != null && !String.IsNullOrEmpty(_currentUser.PerSession.PostJob))
                                 {
                                     Boolean rc = PerSessionPostJob(_currentUser.PerSession.PostJob,cmd);
                                 }
-                            break;
+                                break;
                             case "REIN":
 								_currentUser = null;
 								_dataClient = null;
@@ -562,32 +572,32 @@ namespace SharpServer.Ftp
 
         protected override void OnCommandComplete(Command cmd)
         {
-            if (cmd.Code == "AUTH" && cmd.Arguments.FirstOrDefault().Equals("TLS"))
+            if (cmd.Code == "AUTH" && cmd.Arguments.Count > 0 && cmd.Arguments.FirstOrDefault().Equals("TLS"))
             {
-					_sslEnabled = false;
-					try
-					{
-						_sslStream = new GnuSslStream(ControlStream);
-						_sslStream.Id = "controlstream";
-						_sslStream.ReadTimeout = 5000;
-						_sslStream.WriteTimeout = 5000;
-						_sslStream.AuthenticateAsServer(ServerCertificate, false, 
-                            SslProtocols.Tls|SslProtocols.Tls11|SslProtocols.Tls12, 
-                            false);
-						_sslEnabled = true;
-					}
-					catch (AuthenticationException exception)
-					{
-						_log.ErrorFormat("{0}", exception.Message);
-					}
-                    catch (ArgumentNullException exception)
-                    {
-                        _log.ErrorFormat("{0}", exception.Message);
-                    }
-                    catch (Exception exception)
-                    {
-                        _log.ErrorFormat("{0}", exception.Message);
-                    }
+				_sslEnabled = false;
+				try
+				{
+					_sslStream = new GnuSslStream(ControlStream);
+					_sslStream.Id = "controlstream";
+					_sslStream.ReadTimeout = 5000;
+					_sslStream.WriteTimeout = 5000;
+					_sslStream.AuthenticateAsServer(ServerCertificate, false, 
+                        SslProtocols.Tls|SslProtocols.Tls11|SslProtocols.Tls12, 
+                        false);
+					_sslEnabled = true;
+				}
+				catch (AuthenticationException exception)
+				{
+					_log.ErrorFormat("{0}", exception.Message);
+				}
+                catch (ArgumentNullException exception)
+                {
+                    _log.ErrorFormat("{0}", exception.Message);
+                }
+                catch (Exception exception)
+                {
+                    _log.ErrorFormat("{0}", exception.Message);
+                }
 
             }
 
@@ -613,17 +623,25 @@ namespace SharpServer.Ftp
 
                     if (disposing)
                     {
-							  if (_dataClient != null)
+				        if (_dataClient != null)
                         {
                             _dataClient.Close();
+                            _dataClient.Dispose();
                             _dataClient = null;
                         }
-							  if (_sslStream != null)
-							  {
-								  _sslStream.Dispose();
-								  _sslStream = null;
-							  }
-						  }
+						if (_sslStream != null)
+						{
+                            _sslStream.Close();
+							_sslStream.Dispose();
+							_sslStream = null;
+						}
+                        if (ControlStream != null)
+                        {
+                            ControlStream.Close();
+                            ControlStream.Dispose();
+                            ControlStream = null;
+                        }
+					}
                 }
             }
             finally
@@ -663,7 +681,7 @@ namespace SharpServer.Ftp
         {
             if (_currentUser.PerSession != null && !String.IsNullOrEmpty(_currentUser.PerSession.PostJobPerfile))
             {
-                postJobs.Add(new PostJob() { job = _currentUser.PerSession.PostJobPerfile, cmd = cmd });
+                _postJobs.Add(new PostJob() { job = _currentUser.PerSession.PostJobPerfile, cmd = cmd });
             }
         }
 
@@ -717,7 +735,8 @@ namespace SharpServer.Ftp
 
         private bool IsPathValid(string path)
         {
-            return path.StartsWith(_root, StringComparison.OrdinalIgnoreCase);
+            String test = _currentVirtualDirectory != null ? _currentVirtualDirectory.Path : _root;
+            return path.StartsWith(test, StringComparison.OrdinalIgnoreCase);
         }
 
         private string NormalizeFilename(String path)
@@ -859,41 +878,72 @@ namespace SharpServer.Ftp
 		  private Response ChangeWorkingDirectory(string pathname)
 		  {
 
-			  if (String.IsNullOrEmpty(pathname))
-			  {
-				  return GetResponse(FtpResponses.DIRECTORY_NOT_FOUND);
-			  }
+            if (String.IsNullOrEmpty(pathname) || pathname.Contains("../"))
+            {
+                return GetResponse(FtpResponses.DIRECTORY_NOT_FOUND);
+            }
 
-			  if (pathname == "/")
-			  {
-				  _currentDirectory = _root;
-			  }
-			  else
-			  {
-				  string newDir;
+            if (pathname == "/")
+            {
+                _currentDirectory = _root;
+                _currentVirtualDirectory = null;
+                _currentAlias = pathname;
+            }
+            else if (pathname == "..")
+            {
+                string test = _currentDirectory;
+                int posi = -1;
+                for (int i=0;i < _currentDirectory.Length;i++)
+                {
+                    if (_currentDirectory.Substring(i, 1).Equals(@"\")) posi = i;
+                }
+                if (posi > 0)
+                    test = _currentDirectory.Substring(0, posi);
+                _currentDirectory = IsPathValid(test) ? test : _currentDirectory;
+            }
+            else
+            {
+                string newDir = String.Empty;
 
-				  if (pathname.StartsWith("/", StringComparison.OrdinalIgnoreCase))
-				  {
-					  pathname = pathname.Substring(1).Replace('/', '\\');
-					  newDir = Path.Combine(_root, pathname);
-				  }
-				  else
-				  {
-					  pathname = pathname.Replace('/', '\\');
-					  newDir = Path.Combine(_currentDirectory, pathname);
-				  }
+                if (pathname.StartsWith("/", StringComparison.OrdinalIgnoreCase))
+                {
+                    _currentAlias = pathname;
+                    if (_currentUser.VirtualDirectories != null)
+                    {
+                        var words = pathname.Split('/');
+                        var word1 = "/" + words[1];
+                        _currentVirtualDirectory = _currentUser.VirtualDirectories.FirstOrDefault(i => i.Alias.Equals(word1));
+                        if (_currentVirtualDirectory != null)
+                        {
+                            newDir = String.Format("{0}\\{1}", _currentVirtualDirectory.Path, String.Join("\\", words.Skip(2)));
+                        }
+                    }
+                    if (newDir.Equals(String.Empty))
+                    {
+                        pathname = pathname.Substring(1).Replace('/', '\\');
+                        newDir = Path.Combine(_root, pathname);
+                    }
+                }
+                else
+                {
+                    _currentAlias = _currentAlias.Equals("/") ? 
+                        String.Format("{0}{1}", _currentAlias, pathname) : 
+                        String.Format("{0}/{1}", _currentAlias, pathname);
+                    pathname = pathname.Replace('/', '\\');
+                    newDir = Path.Combine(_currentDirectory, pathname);
+                }
 
-				  if (Directory.Exists(newDir))
-				  {
-					  _currentDirectory = newDir;
-				  }
-				  else
-				  {
-					  return GetResponse(FtpResponses.DIRECTORY_NOT_FOUND);
-				  }
-			  }
+                if (Directory.Exists(newDir))
+                {
+                    _currentDirectory = newDir;
+                }
+                else
+                {
+                    return GetResponse(FtpResponses.DIRECTORY_NOT_FOUND);
+                }
+            }
 
-			  return GetResponse(FtpResponses.OK);
+            return GetResponse(FtpResponses.OK);
 		  }
 
         /// <summary>
@@ -1085,7 +1135,7 @@ namespace SharpServer.Ftp
 
                     SetupDataConnectionOperation(state);
 
-						  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "RETR" + (_protected ? withSsl : "")));
+						  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "RETR" + (_protected ? _withSsl : "")));
                 }
             }
 
@@ -1123,7 +1173,7 @@ namespace SharpServer.Ftp
 				_log.DebugFormat("STOR {0}",Pathname);
 				var state = new DataConnectionOperation { Arguments = Pathname, Operation = StoreOperation };
                 SetupDataConnectionOperation(state);
-                var rc = GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR" + (_protected ? withSsl : "")));
+                var rc = GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOR" + (_protected ? _withSsl : "")));
                 _hasSTORed = true;
                 return rc;
             }
@@ -1150,7 +1200,7 @@ namespace SharpServer.Ftp
 
 				  SetupDataConnectionOperation(state);
 
-				  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOU" + (_protected ? withSsl : "")));
+				  return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "STOU" + (_protected ? _withSsl : "")));
 			  }
 			  else
 			  {
@@ -1174,7 +1224,7 @@ namespace SharpServer.Ftp
 
                 SetupDataConnectionOperation(state);
 
-					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "APPE" + (_protected ? withSsl : "")));
+					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "APPE" + (_protected ? _withSsl : "")));
             }
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
@@ -1302,7 +1352,12 @@ namespace SharpServer.Ftp
         /// <returns></returns>
         private Response PrintWorkingDirectory()
         {
-            string current = _currentDirectory.Replace(_root, string.Empty).Replace('\\', '/');
+            string current = String.Empty;
+            String test = _currentVirtualDirectory != null ? _currentVirtualDirectory.Path : _root;
+            if (_currentVirtualDirectory!=null)
+                current = _currentDirectory.Replace(_currentVirtualDirectory.Path,_currentVirtualDirectory.Alias).Replace('\\', '/');
+            else
+                current = _currentDirectory.Replace(_root, string.Empty).Replace('\\', '/');
 
             if (current.Length == 0)
             {
@@ -1322,7 +1377,7 @@ namespace SharpServer.Ftp
 
                 SetupDataConnectionOperation(state);
 
-					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "NLST" + (_protected ? withSsl : "")));
+					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "NLST" + (_protected ? _withSsl : "")));
             }
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
@@ -1344,7 +1399,7 @@ namespace SharpServer.Ftp
 
                 SetupDataConnectionOperation(state);
 
-					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "LIST" + (_protected ? withSsl : "")));
+					 return GetResponse(FtpResponses.OPENING_DATA_TRANSFER.SetData(_dataConnectionType, "LIST" + (_protected ? _withSsl : "")));
             }
 
             return GetResponse(FtpResponses.FILE_ACTION_NOT_TAKEN);
@@ -1680,6 +1735,7 @@ namespace SharpServer.Ftp
 
         private Response ListOperation(Stream dataStream, string pathname)
         {
+
             DateTime now = DateTime.Now;
 
             StreamWriter dataWriter = new StreamWriter(dataStream, DataStreamEncoding);
@@ -1753,37 +1809,37 @@ namespace SharpServer.Ftp
         {
             var dataWriter = new StreamWriter(dataStream, DataStreamEncoding);
 
-				try
-				{
-					var dirs = Directory.EnumerateDirectories(pathname);
-					var files = Directory.EnumerateFiles(pathname);
+            try
+            {
+                var dirs = Directory.EnumerateDirectories(pathname);
+                var files = Directory.EnumerateFiles(pathname);
 
-					foreach (var dir in dirs)
-					{
-						dataWriter.WriteLine(Path.GetFileName(dir));
-						dataWriter.Flush();
-					}
-					foreach (var file in files)
-					{
-						dataWriter.WriteLine(Path.GetFileName(file));
-						dataWriter.Flush();
-					}
+                foreach (var dir in dirs)
+                {
+                    dataWriter.WriteLine(Path.GetFileName(dir));
+                    dataWriter.Flush();
+                }
+                foreach (var file in files)
+                {
+                    dataWriter.WriteLine(Path.GetFileName(file));
+                    dataWriter.Flush();
+                }
 
-					var logEntry = new FtpLogEntry
-					{
-						Date = DateTime.Now,
-						CIP = ClientIP,
-						CSMethod = "NLST",
-						CSUsername = _username,
-						SCStatus = "226"
-					};
-					_log.Info(logEntry);
-				}
-				catch (Exception ex)
-				{
-					var dummy = ex;
-					_log.ErrorFormat("invalid pathname={0}",pathname);
-				}
+                var logEntry = new FtpLogEntry
+                {
+                    Date = DateTime.Now,
+                    CIP = ClientIP,
+                    CSMethod = "NLST",
+                    CSUsername = _username,
+                    SCStatus = "226"
+                };
+                _log.Info(logEntry);
+            }
+            catch (Exception ex)
+            {
+                var dummy = ex;
+                _log.ErrorFormat("invalid pathname={0}", pathname);
+            }
 
             return GetResponse(FtpResponses.TRANSFER_SUCCESSFUL);
         }

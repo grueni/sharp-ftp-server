@@ -135,14 +135,15 @@ namespace SharpServer
 
             var listener = result.AsyncState as TcpListener;
 
-            if (listener.Server.IsBound)
+            if (listener != null && listener.Server != null && listener.Server.IsBound)
             {
-				var client = listener.EndAcceptTcpClient(result);
 
-				listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
+                var client = listener.EndAcceptTcpClient(result);
 
-				_log.DebugFormat("_userStore={0}", _userStore);
-				var connection = new T() { UserStore = _userStore, ServerCertificate = _ServerCertificate, minPort = _minPort, maxPort = _maxPort };
+                listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
+
+                _log.DebugFormat("_userStore={0}", _userStore);
+                var connection = new T() { UserStore = _userStore, ServerCertificate = _ServerCertificate, minPort = _minPort, maxPort = _maxPort };
 
                 connection.Disposed += new EventHandler<EventArgs>(AsyncClientConnection_Disposed);
 
