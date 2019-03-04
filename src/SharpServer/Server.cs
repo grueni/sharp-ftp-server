@@ -48,7 +48,36 @@ namespace SharpServer
             _minPort = minPort;
             _maxPort = maxPort;
             _log.DebugFormat("_userStore={0} certificatePath={1} _minPort={2} _maxPort={3}", _userStore, certificatePath,_minPort,_maxPort);
-            if (!String.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
+            if (String.IsNullOrEmpty(certificatePath))
+            {
+                try
+                {
+                    System.Net.ServicePointManager.ServerCertificateValidationCallback = new System.Net.Security.RemoteCertificateValidationCallback(ValidateCertificate);
+                    String Computername = System.Environment.MachineName;
+                    String DNSHostname = System.Net.Dns.GetHostName();
+
+                    var store = new X509Store(StoreLocation.LocalMachine);
+                    store.Open(OpenFlags.ReadOnly);
+                    var certCollection = store.Certificates;
+                    var myCerts = certCollection.Find(X509FindType.FindBySubjectName, DNSHostname, true);
+
+                    if (myCerts.Count > 0)
+                    {
+                        _ServerCertificate = myCerts[0];
+                        if (_log.IsDebugEnabled) _log.DebugFormat("use certificate: \n{0}", getCertificateInfo(_ServerCertificate));
+                    }
+                    else
+                    {
+                        throw new Exception(String.Format("Problem: no valid certificate found in location LocalMachine and Store My for DNSHostname={0}", DNSHostname));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.ErrorFormat("{0}", ex.Message);
+                }
+
+            }
+            else if (File.Exists(certificatePath))
             {
 	            _ServerCertificate = String.IsNullOrEmpty(certificatePassword)
 		            ? new X509Certificate2(certificatePath)
@@ -115,6 +144,21 @@ namespace SharpServer
 				return rc;
 		  }
 
+        public bool ValidateCertificate(object sender, X509Certificate certificate, X509Chain chain, System.Net.Security.SslPolicyErrors sslPolicyError)
+        {
+            return true;
+        }
+
+        private String getCertificateInfo(X509Certificate certificate)
+        {
+            return
+              String.Format("Subject      : {0}\n", certificate.Subject)
+            + String.Format("Issuer       : {0}\n", certificate.Issuer)
+            + String.Format("Serial       : {0}\n", certificate.GetSerialNumberString())
+            + String.Format("Valid        : {0}", certificate.GetExpirationDateString())
+            ;
+        }
+
         protected virtual void OnStart()
         {
         }
@@ -142,7 +186,6 @@ namespace SharpServer
 
                 listener.BeginAcceptTcpClient(HandleAcceptTcpClient, listener);
 
-                _log.DebugFormat("_userStore={0}", _userStore);
                 var connection = new T() { UserStore = _userStore, ServerCertificate = _ServerCertificate, minPort = _minPort, maxPort = _maxPort };
 
                 connection.Disposed += new EventHandler<EventArgs>(AsyncClientConnection_Disposed);
